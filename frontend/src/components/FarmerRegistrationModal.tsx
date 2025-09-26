@@ -248,11 +248,9 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
                       onChange={handleChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
                     >
-                      <option value="tradicional">Agricultura Tradicional</option>
-                      <option value="ecologica">Agricultura Ecológica</option>
-                      <option value="biodinamica">Agricultura Biodinámica</option>
-                      <option value="integrada">Agricultura Integrada</option>
-                      <option value="artesanal">Producción Artesanal</option>
+                      <option value="conventional">Agricultura Tradicional</option>
+                      <option value="organic">Agricultura Ecológica</option>
+                      <option value="integrated">Agricultura Integrada</option>
                     </select>
                   </div>
 
