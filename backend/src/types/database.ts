@@ -287,6 +287,34 @@ export interface CreateFarmerRequest {
   website?: string;
 }
 
+// 8. APLICACIONES DE AGRICULTORES
+export interface FarmerApplication {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  business_name?: string;
+  production_type: 'organic' | 'conventional' | 'integrated';
+  main_products: string;
+  certifications?: string;
+  address: string;
+  postal_code: string;
+  city: string;
+  province: string;
+  farming_experience: number;
+  hectares?: number;
+  description: string;
+  website?: string;
+  social_media?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  notes?: string;
+  approved_by?: string;
+  approved_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Suscripción newsletter
 export interface NewsletterSubscriptionRequest {
   email: string;

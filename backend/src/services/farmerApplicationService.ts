@@ -21,6 +21,59 @@ export class FarmerApplicationService {
     return data;
   }
 
+  // Aprobar solicitud y crear agricultor
+  static async approveApplication(applicationId: string, adminId: string): Promise<{ farmerId: string; application: FarmerApplication }> {
+    const { data: farmerId, error: approveError } = await supabaseAdmin
+      .rpc('approve_farmer_application', {
+        application_id: applicationId,
+        admin_id: adminId
+      });
+
+    if (approveError) {
+      throw new Error(`Error al aprobar solicitud: ${approveError.message}`);
+    }
+
+    // Obtener la solicitud actualizada
+    const { data: application, error: fetchError } = await supabaseAdmin
+      .from('farmer_applications')
+      .select('*')
+      .eq('id', applicationId)
+      .single();
+
+    if (fetchError) {
+      throw new Error(`Error al obtener solicitud: ${fetchError.message}`);
+    }
+
+    return { farmerId, application };
+  }
+
+  // Rechazar solicitud
+  static async rejectApplication(applicationId: string, adminId: string, reason?: string): Promise<FarmerApplication> {
+    const { data: success, error: rejectError } = await supabaseAdmin
+      .rpc('reject_farmer_application', {
+        application_id: applicationId,
+        admin_id: adminId,
+        reason: reason || null
+      });
+
+    if (rejectError || !success) {
+      throw new Error(`Error al rechazar solicitud: ${rejectError?.message || 'Solicitud no encontrada'}`);
+    }
+
+    // Obtener la solicitud actualizada
+    const { data: application, error: fetchError } = await supabaseAdmin
+      .from('farmer_applications')
+      .select('*')
+      .eq('id', applicationId)
+      .single();
+
+    if (fetchError) {
+      throw new Error(`Error al obtener solicitud: ${fetchError.message}`);
+    }
+
+    return application;
+  }
+
   // Obtener todas las aplicaciones
   static async getAllApplications(): Promise<FarmerApplication[]> {
     const { data, error } = await supabaseAdmin
@@ -100,8 +153,8 @@ export class FarmerApplicationService {
     return data;
   }
 
-  // Aprobar aplicación y crear agricultor
-  static async approveApplication(
+  // Método legacy mantenido por compatibilidad
+  static async approveApplicationLegacy(
     id: string, 
     reviewedBy: string, 
     adminNotes?: string
@@ -159,8 +212,8 @@ export class FarmerApplicationService {
     };
   }
 
-  // Rechazar aplicación
-  static async rejectApplication(
+  // Método legacy mantenido por compatibilidad
+  static async rejectApplicationLegacy(
     id: string, 
     reviewedBy: string, 
     adminNotes: string

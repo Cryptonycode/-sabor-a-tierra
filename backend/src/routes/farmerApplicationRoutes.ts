@@ -93,7 +93,7 @@ router.post('/:id/approve', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'reviewed_by es requerido' });
     }
 
-    const result = await FarmerApplicationService.approveApplication(id, reviewed_by, admin_notes);
+    const result = await FarmerApplicationService.approveApplication(id, reviewed_by);
     return res.json(result);
   } catch (error) {
     console.error('Error al aprobar aplicación:', error);

@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import ProductCard from '@/components/ProductCard';
 import Footer from '@/components/Footer';
-import { getAllProducts } from '@/data/products';
+import { useProducts } from '@/hooks/useProducts';
 import FarmerRegistrationModal from '@/components/FarmerRegistrationModal';
 
 // Categorías de productos
@@ -21,9 +21,11 @@ export default function ProductsPage() {
   const [sortBy, setSortBy] = useState('name');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const allProducts = getAllProducts();
+  const { products: allProducts, loading, error } = useProducts();
 
   const filteredProducts = useMemo(() => {
+    if (!allProducts) return [];
+    
     let filtered = allProducts;
 
     // Filtrar por categoría
@@ -51,7 +53,36 @@ export default function ProductsPage() {
     });
 
     return filtered;
-  }, [selectedCategory, searchTerm, sortBy]);
+  }, [allProducts, selectedCategory, searchTerm, sortBy]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-gray-600">Cargando productos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

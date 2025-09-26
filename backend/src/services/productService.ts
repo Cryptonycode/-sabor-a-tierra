@@ -189,8 +189,21 @@ export class ProductService {
     });
   }
 
-  // Obtener productos por agricultor
-  static async getProductsByFarmer(farmerId: string): Promise<Product[]> {
+  // Obtener productos por agricultor usando función SQL
+  static async getProductsByFarmer(farmerId: string): Promise<any> {
+    const { data, error } = await supabaseAdmin.rpc('get_farmer_products', {
+      farmer_id: farmerId
+    });
+
+    if (error) {
+      throw new Error(`Error al obtener productos del agricultor: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
+  // Obtener productos básicos por agricultor (backup method)
+  static async getProductsByFarmerBasic(farmerId: string): Promise<Product[]> {
     const { data, error } = await supabaseAdmin
       .from('products')
       .select('*')

@@ -207,18 +207,6 @@ export class AdminService {
     return admin.permissions.includes(permission);
   }
 
-  // Obtener estadísticas del dashboard
-  static async getDashboardStats(): Promise<DashboardStats> {
-    // Ejecutar la función SQL que creamos en el esquema
-    const { data, error } = await supabaseAdmin
-      .rpc('get_dashboard_stats');
-
-    if (error) {
-      throw new Error(`Error al obtener estadísticas del dashboard: ${error.message}`);
-    }
-
-    return data;
-  }
 
   // Obtener actividad reciente (para el dashboard)
   static async getRecentActivity(limit = 10) {
@@ -318,5 +306,23 @@ export class AdminService {
       draft_products: data?.filter(p => p.status === 'draft').length || 0,
       category_distribution: categoryDistribution
     };
+  }
+
+  // Obtener estadísticas del dashboard con solicitudes pendientes
+  static async getDashboardStats(): Promise<any> {
+    try {
+      const { data, error } = await supabaseAdmin.rpc('get_admin_dashboard_stats');
+
+      if (error) {
+        throw new Error(`Error al obtener estadísticas: ${error.message}`);
+      }
+
+      return {
+        ...data,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      throw new Error(`Error al obtener estadísticas: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    }
   }
 }

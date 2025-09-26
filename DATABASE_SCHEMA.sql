@@ -659,6 +659,81 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ========================================
+-- 8. APLICACIONES DE AGRICULTORES
+-- ========================================
+
+CREATE TABLE farmer_applications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  
+  -- Información personal
+  first_name VARCHAR NOT NULL,
+  last_name VARCHAR NOT NULL,
+  email VARCHAR NOT NULL,
+  phone VARCHAR NOT NULL,
+  
+  -- Información del negocio
+  business_name VARCHAR,
+  production_type VARCHAR NOT NULL CHECK (production_type IN ('organic', 'conventional', 'integrated')),
+  main_products VARCHAR NOT NULL,
+  certifications VARCHAR,
+  
+  -- Ubicación
+  address VARCHAR NOT NULL,
+  postal_code VARCHAR NOT NULL,
+  city VARCHAR NOT NULL,
+  province VARCHAR NOT NULL,
+  
+  -- Experiencia
+  farming_experience INTEGER NOT NULL,
+  hectares DECIMAL(10,2),
+  description TEXT NOT NULL,
+  
+  -- Información adicional
+  website VARCHAR,
+  social_media VARCHAR,
+  
+  -- Estado de la aplicación
+  status VARCHAR DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  notes TEXT,
+  approved_by UUID REFERENCES admins(id),
+  approved_at TIMESTAMP WITH TIME ZONE,
+  
+  -- Timestamps
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índices para farmer_applications
+CREATE INDEX idx_farmer_applications_email ON farmer_applications(email);
+CREATE INDEX idx_farmer_applications_status ON farmer_applications(status);
+CREATE INDEX idx_farmer_applications_created_at ON farmer_applications(created_at);
+
+-- Trigger para updated_at
+CREATE TRIGGER set_farmer_applications_updated_at
+    BEFORE UPDATE ON farmer_applications
+    FOR EACH ROW
+    EXECUTE FUNCTION update_timestamp();
+
+-- RLS para farmer_applications
+ALTER TABLE farmer_applications ENABLE ROW LEVEL SECURITY;
+
+-- Política: Los administradores pueden ver todas las aplicaciones
+CREATE POLICY "Admins can view all farmer applications" ON farmer_applications
+    FOR SELECT USING (EXISTS (
+        SELECT 1 FROM admins WHERE admins.id = auth.uid()
+    ));
+
+-- Política: Los administradores pueden actualizar aplicaciones
+CREATE POLICY "Admins can update farmer applications" ON farmer_applications
+    FOR UPDATE USING (EXISTS (
+        SELECT 1 FROM admins WHERE admins.id = auth.uid()
+    ));
+
+-- Política: Cualquiera puede crear una aplicación (registro público)
+CREATE POLICY "Anyone can create farmer applications" ON farmer_applications
+    FOR INSERT WITH CHECK (true);
+
+-- ========================================
 -- ESQUEMA COMPLETADO
 -- Base de datos lista para e-commerce completo con:
 -- ✅ Usuarios clientes registrados
