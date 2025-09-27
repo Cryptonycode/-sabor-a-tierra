@@ -28,9 +28,8 @@ export default function CartSidebar() {
   }, [cart.isOpen, closeCart]);
 
   const handleCheckout = () => {
-    console.log('Checkout iniciado:', cart);
-    // Aquí se integrará la pasarela de pago en el futuro
-    alert('Funcionalidad de pago en desarrollo');
+    closeCart();
+    window.location.href = '/checkout';
   };
 
   if (!cart.isOpen) return null;
