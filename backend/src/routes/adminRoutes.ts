@@ -1,10 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { AdminService } from '../services/adminService';
+import { requireAuth, requireAdmin, requireSuperAdmin } from '../middleware/authMiddleware';
 
 const router = Router();
 
 // GET /api/admin/dashboard - Obtener estadísticas del dashboard
-router.get('/dashboard', async (req: Request, res: Response) => {
+router.get('/dashboard', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const stats = await AdminService.getDashboardStats();
     return res.json(stats);
@@ -18,7 +19,7 @@ router.get('/dashboard', async (req: Request, res: Response) => {
 });
 
 // GET /api/admin/activity - Obtener actividad reciente
-router.get('/activity', async (req: Request, res: Response) => {
+router.get('/activity', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { limit } = req.query;
     const limitNumber = limit ? parseInt(limit as string) : 10;
@@ -35,7 +36,7 @@ router.get('/activity', async (req: Request, res: Response) => {
 });
 
 // GET /api/admin/sales-metrics - Obtener métricas de ventas
-router.get('/sales-metrics', async (req: Request, res: Response) => {
+router.get('/sales-metrics', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { days } = req.query;
     const daysNumber = days ? parseInt(days as string) : 30;
@@ -52,7 +53,7 @@ router.get('/sales-metrics', async (req: Request, res: Response) => {
 });
 
 // GET /api/admin/product-metrics - Obtener métricas de productos
-router.get('/product-metrics', async (req: Request, res: Response) => {
+router.get('/product-metrics', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const metrics = await AdminService.getProductMetrics();
     return res.json(metrics);
@@ -66,7 +67,7 @@ router.get('/product-metrics', async (req: Request, res: Response) => {
 });
 
 // GET /api/admin/admins - Obtener todos los administradores
-router.get('/admins', async (req: Request, res: Response) => {
+router.get('/admins', requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { active_only } = req.query;
     
@@ -88,7 +89,7 @@ router.get('/admins', async (req: Request, res: Response) => {
 });
 
 // GET /api/admin/admins/:id - Obtener administrador por ID
-router.get('/admins/:id', async (req: Request, res: Response) => {
+router.get('/admins/:id', requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const admin = await AdminService.getAdminById(id);
@@ -108,7 +109,7 @@ router.get('/admins/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/admin/admins - Crear nuevo administrador
-router.post('/admins', async (req: Request, res: Response) => {
+router.post('/admins', requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const adminData = req.body;
     const admin = await AdminService.createAdmin(adminData);
@@ -123,7 +124,7 @@ router.post('/admins', async (req: Request, res: Response) => {
 });
 
 // PUT /api/admin/admins/:id - Actualizar administrador
-router.put('/admins/:id', async (req: Request, res: Response) => {
+router.put('/admins/:id', requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -139,7 +140,7 @@ router.put('/admins/:id', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/admin/admins/:id - Eliminar administrador
-router.delete('/admins/:id', async (req: Request, res: Response) => {
+router.delete('/admins/:id', requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await AdminService.deleteAdmin(id);
@@ -154,7 +155,7 @@ router.delete('/admins/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/admin/admins/:id/toggle-status - Activar/Desactivar administrador
-router.post('/admins/:id/toggle-status', async (req: Request, res: Response) => {
+router.post('/admins/:id/toggle-status', requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { is_active } = req.body;
@@ -175,7 +176,7 @@ router.post('/admins/:id/toggle-status', async (req: Request, res: Response) => 
 });
 
 // POST /api/admin/change-password - Cambiar contraseña
-router.post('/change-password', async (req: Request, res: Response) => {
+router.post('/change-password', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { admin_id, current_password, new_password } = req.body;
     
@@ -225,7 +226,7 @@ router.post('/verify-password', async (req: Request, res: Response) => {
 });
 
 // GET /api/admin/search/:query - Buscar administradores
-router.get('/search/:query', async (req: Request, res: Response) => {
+router.get('/search/:query', requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { query } = req.params;
     const admins = await AdminService.searchAdmins(query);
@@ -240,7 +241,7 @@ router.get('/search/:query', async (req: Request, res: Response) => {
 });
 
 // GET /api/admin/permissions/:id/:permission - Verificar permisos
-router.get('/permissions/:id/:permission', async (req: Request, res: Response) => {
+router.get('/permissions/:id/:permission', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id, permission } = req.params;
     const hasPermission = await AdminService.hasPermission(id, permission);

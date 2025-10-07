@@ -2,14 +2,18 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { AuthProvider } from '../../contexts/AuthContext';
+import ProtectedRoute from '../../components/ProtectedRoute';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
-export default function AdminLayout({ children }: AdminLayoutProps) {
+function AdminLayoutContent({ children }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const pathname = usePathname();
+  const { admin, logout } = useAuth();
 
   const navigation = [
     { 
@@ -115,16 +119,23 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           {sidebarOpen ? (
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center">
-                <span className="text-white font-bold">A</span>
+                <span className="text-white font-bold">
+                  {admin?.first_name?.charAt(0) || 'A'}
+                </span>
               </div>
               <div className="text-white">
-                <div className="font-medium">Administrador</div>
-                <div className="text-sm opacity-75">admin@saboratierra.com</div>
+                <div className="font-medium">
+                  {admin ? `${admin.first_name} ${admin.last_name}` : 'Administrador'}
+                </div>
+                <div className="text-sm opacity-75">{admin?.email || 'admin@saboratierra.com'}</div>
+                <div className="text-xs opacity-60 capitalize">{admin?.role || 'admin'}</div>
               </div>
             </div>
           ) : (
             <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center mx-auto">
-              <span className="text-white font-bold">A</span>
+              <span className="text-white font-bold">
+                {admin?.first_name?.charAt(0) || 'A'}
+              </span>
             </div>
           )}
         </div>
@@ -148,7 +159,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 </span>
               </button>
               
-              <button className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors">
+              <button 
+                onClick={logout}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
                 Cerrar Sesión
               </button>
             </div>
@@ -161,5 +175,26 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function AdminLayout({ children }: AdminLayoutProps) {
+  const pathname = usePathname();
+
+  // Para páginas públicas del área admin (login/unauthorized) no usar el layout protegido
+  if (pathname === '/admin/login' || pathname === '/admin/unauthorized') {
+    return (
+      <AuthProvider>
+        {children}
+      </AuthProvider>
+    );
+  }
+
+  return (
+    <AuthProvider>
+      <ProtectedRoute allowedRoles={['admin', 'superadmin', 'moderator']}>
+        <AdminLayoutContent>{children}</AdminLayoutContent>
+      </ProtectedRoute>
+    </AuthProvider>
   );
 }

@@ -16,6 +16,7 @@ import farmerRoutes from './routes/farmerRoutes';
 import farmerApplicationRoutes from './routes/farmerApplicationRoutes';
 import newsletterRoutes from './routes/newsletterRoutes';
 import adminRoutes from './routes/adminRoutes';
+import authRoutes from './routes/authRoutes';
 
 // Configuración de variables de entorno
 dotenv.config();
@@ -36,36 +37,50 @@ app.use(cors({
 app.use(express.json());
 app.use(passport.initialize());
 
-// Configuración de Passport para OAuth
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID || '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-      callbackURL: '/auth/google/callback',
-    },
-    async (accessToken, refreshToken, profile, done) => {
-      // TODO: Implementar lógica de autenticación con Google usando Supabase Auth
-      return done(null, profile);
-    }
-  )
-);
+// Configuración de Passport para OAuth (solo si hay credenciales)
+const hasGoogleOAuth = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+const hasFacebookOAuth = Boolean(process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET);
 
-passport.use(
-  new FacebookStrategy(
-    {
-      clientID: process.env.FACEBOOK_APP_ID || '',
-      clientSecret: process.env.FACEBOOK_APP_SECRET || '',
-      callbackURL: '/auth/facebook/callback',
-    },
-    async (accessToken: string, refreshToken: string, profile: any, done: any) => {
-      // TODO: Implementar lógica de autenticación con Facebook usando Supabase Auth
-      return done(null, profile);
-    }
-  )
-);
+if (hasGoogleOAuth) {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: process.env.GOOGLE_CLIENT_ID as string,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+        callbackURL: process.env.GOOGLE_CALLBACK_URL || '/auth/google/callback',
+      },
+      async (accessToken, refreshToken, profile, done) => {
+        // TODO: Implementar lógica de autenticación con Google usando Supabase Auth
+        return done(null, profile);
+      }
+    )
+  );
+  console.log('🔐 Google OAuth habilitado');
+} else {
+  console.warn('⚠️  Google OAuth no configurado. Defina GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET para habilitarlo.');
+}
+
+if (hasFacebookOAuth) {
+  passport.use(
+    new FacebookStrategy(
+      {
+        clientID: process.env.FACEBOOK_APP_ID as string,
+        clientSecret: process.env.FACEBOOK_APP_SECRET as string,
+        callbackURL: process.env.FACEBOOK_CALLBACK_URL || '/auth/facebook/callback',
+      },
+      async (accessToken: string, refreshToken: string, profile: any, done: any) => {
+        // TODO: Implementar lógica de autenticación con Facebook usando Supabase Auth
+        return done(null, profile);
+      }
+    )
+  );
+  console.log('🔐 Facebook OAuth habilitado');
+} else {
+  console.warn('⚠️  Facebook OAuth no configurado. Defina FACEBOOK_APP_ID y FACEBOOK_APP_SECRET para habilitarlo.');
+}
 
 // Rutas de la API
+app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/customers', customerRoutes);

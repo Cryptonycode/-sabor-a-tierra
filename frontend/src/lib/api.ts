@@ -25,13 +25,20 @@ class ApiClient {
 
     try {
       const response = await fetch(url, config);
-      
+      const contentType = response.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+      const data = isJson ? await response.json() : await response.text();
+
+      // Si el backend devuelve JSON con error (401/400/etc), retornamos ese JSON
+      // para que la UI pueda manejar el mensaje (p.ej., "Credenciales inválidas").
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        if (isJson) {
+          return data as T;
+        }
+        throw new Error(`HTTP error! status: ${response.status} - ${String(data)}`);
       }
 
-      return await response.json();
+      return data as T;
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
@@ -39,31 +46,34 @@ class ApiClient {
   }
 
   // Métodos HTTP
-  async get<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'GET' });
+  async get<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    return this.request<T>(endpoint, { method: 'GET', ...options });
   }
 
-  async post<T>(endpoint: string, data: any): Promise<T> {
+  async post<T>(endpoint: string, data: any, options: RequestInit = {}): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: JSON.stringify(data),
+      ...options,
     });
   }
 
-  async put<T>(endpoint: string, data: any): Promise<T> {
+  async put<T>(endpoint: string, data: any, options: RequestInit = {}): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'PUT',
       body: JSON.stringify(data),
+      ...options,
     });
   }
 
-  async delete<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'DELETE' });
+  async delete<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    return this.request<T>(endpoint, { method: 'DELETE', ...options });
   }
 }
 
-// Instancia del cliente API
-export const apiClient = new ApiClient(API_BASE_URL);
+// Instancias y exportaciones
+export const api = new ApiClient(API_BASE_URL);
+export const apiClient = api; // alias para compatibilidad
 
 // Tipos para las respuestas de la API
 export interface ApiProduct {
