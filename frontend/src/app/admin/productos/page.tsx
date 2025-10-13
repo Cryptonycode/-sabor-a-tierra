@@ -89,19 +89,28 @@ export default function ProductsManagementPage() {
 
   const fetchProducts = async () => {
     try {
+      console.log('🔄 Obteniendo productos...');
       const response = await apiClient.get<Product[]>('/products');
+      console.log('✅ Productos recibidos:', response);
+      console.log('📊 Cantidad de productos:', response.length);
       setProducts(response);
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error('❌ Error al obtener productos:', error);
+    } finally {
+      console.log('🏁 Finalizando carga de productos');
+      setLoading(false);
     }
   };
 
   const fetchFarmers = async () => {
     try {
+      console.log('🔄 Obteniendo agricultores...');
       const response = await apiClient.get<any[]>('/farmers');
+      console.log('✅ Agricultores recibidos:', response);
+      console.log('📊 Cantidad de agricultores:', response.length);
       setFarmers(response);
     } catch (error) {
-      console.error('Error fetching farmers:', error);
+      console.error('❌ Error al obtener agricultores:', error);
     }
   };
 
