@@ -23,7 +23,7 @@ interface CheckoutData {
 }
 
 export default function CheckoutPage() {
-  const { cart, clearCart } = useCart();
+  const { cart, clearCart, isLoading } = useCart();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
@@ -45,21 +45,25 @@ export default function CheckoutPage() {
     marketing_consent: false,
   });
 
-  // Redirigir si el carrito está vacío
+  // Redirigir si el carrito está vacío, esperando a que cargue
   useEffect(() => {
+    if (isLoading) return;
     if (cart.items.length === 0) {
       router.push('/productos');
     }
-  }, [cart.items.length, router]);
+  }, [isLoading, cart.items.length, router]);
 
   const handleInputChange = (section: keyof CheckoutData, field: string, value: string | boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
-      }
-    }));
+    setFormData(prev => {
+      const sectionData: any = prev[section] || {};
+      return {
+        ...prev,
+        [section]: {
+          ...sectionData,
+          [field]: value
+        }
+      } as CheckoutData;
+    });
   };
 
   const validateStep = (step: number): boolean => {
@@ -123,7 +127,7 @@ export default function CheckoutPage() {
         marketing_consent: formData.marketing_consent
       };
 
-      const response = await apiClient.post('/orders', orderData);
+      const response: any = await apiClient.post('/orders', orderData);
       
       // Simular procesamiento de pago
       if (formData.payment_method !== 'cash_on_delivery') {
@@ -145,8 +149,11 @@ export default function CheckoutPage() {
     }
   };
 
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
+  }
   if (cart.items.length === 0) {
-    return null; // El useEffect redirigirá
+    return null; // El useEffect redirigirá cuando isLoading sea false
   }
 
   const steps = [
@@ -171,9 +178,7 @@ export default function CheckoutPage() {
             <div className="flex items-center justify-between">
               {steps.map((step, index) => (
                 <div key={step.number} className="flex items-center">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
-                    currentStep >= step.number ? 'bg-primary' : 'bg-gray-300'
-                  }`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${currentStep >= step.number ? 'bg-primary' : 'bg-gray-300'}`}>
                     {currentStep > step.number ? '✓' : step.number}
                   </div>
                   <div className="ml-3 hidden sm:block">
@@ -457,7 +462,7 @@ export default function CheckoutPage() {
                   {cart.items.map((item) => (
                     <div key={item.id} className="flex items-center space-x-3">
                       <img
-                        src={item.image || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=60&h=60&fit=crop'}
+                        src={(item as any).imageUrl || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=60&h=60&fit=crop'}
                         alt={item.name}
                         className="w-12 h-12 object-cover rounded"
                       />
@@ -505,9 +510,9 @@ export default function CheckoutPage() {
                   <div className="text-sm text-green-800">
                     <div className="font-medium">🚚 Entrega estimada</div>
                     <div>2-3 días laborables</div>
-                    {cart.totalPrice > 50 && (
-                      <div className="text-xs mt-1">✅ Envío gratuito (pedido > €50)</div>
-                    )}
+                    {cart.totalPrice > 50 ? (
+                      <div className="text-xs mt-1">✅ Envío gratuito (pedido &gt; €50)</div>
+                    ) : null}
                   </div>
                 </div>
               </div>

@@ -19,6 +19,7 @@ export interface CartState {
   totalItems: number;
   totalPrice: number;
   isOpen: boolean;
+  isLoading: boolean;
 }
 
 export interface CartContextType {
@@ -30,6 +31,7 @@ export interface CartContextType {
   toggleCart: () => void;
   openCart: () => void;
   closeCart: () => void;
+  isLoading: boolean;
 }
 
 

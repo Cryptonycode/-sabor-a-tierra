@@ -8,6 +8,7 @@ const initialCartState: CartState = {
   totalItems: 0,
   totalPrice: 0,
   isOpen: false,
+  isLoading: true,
 };
 
 // Tipos de acciones del reducer
@@ -19,7 +20,8 @@ type CartAction =
   | { type: 'TOGGLE_CART' }
   | { type: 'OPEN_CART' }
   | { type: 'CLOSE_CART' }
-  | { type: 'LOAD_CART'; payload: CartItem[] };
+  | { type: 'LOAD_CART'; payload: CartItem[] }
+  | { type: 'SET_LOADING'; payload: boolean };
 
 // Funciones auxiliares
 const calculateTotals = (items: CartItem[]) => {
@@ -170,6 +172,12 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
         totalPrice,
       };
     }
+
+    case 'SET_LOADING':
+      return {
+        ...state,
+        isLoading: action.payload,
+      };
     
     default:
       return state;
@@ -185,9 +193,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Cargar carrito desde localStorage al montar
   useEffect(() => {
-    const savedCart = loadCartFromStorage();
-    if (savedCart.length > 0) {
-      dispatch({ type: 'LOAD_CART', payload: savedCart });
+    try {
+      const savedCart = loadCartFromStorage();
+      if (savedCart.length > 0) {
+        dispatch({ type: 'LOAD_CART', payload: savedCart });
+      }
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, []);
 
@@ -229,6 +241,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     toggleCart,
     openCart,
     closeCart,
+    isLoading: cart.isLoading,
   };
 
   return (
