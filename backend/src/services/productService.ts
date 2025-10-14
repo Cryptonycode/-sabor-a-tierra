@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../config/supabase';
-import { Product, CreateProductRequest, ProductWithFarmer } from '../types/database';
+import { Product, CreateProductRequest, ProductWithFarmer, ProductWithVariants } from '../types/database';
 
 export class ProductService {
   // Obtener todos los productos
@@ -42,9 +42,10 @@ export class ProductService {
   }
 
   // Obtener producto por ID
-  static async getProductById(id: string): Promise<Product | null> {
+  static async getProductById(id: string): Promise<ProductWithVariants | null> {
+    // Consultar la vista products_with_variants para obtener el producto y sus variantes asociadas
     const { data, error } = await supabaseAdmin
-      .from('products')
+      .from('products_with_variants')
       .select('*')
       .eq('id', id)
       .single();
@@ -56,7 +57,32 @@ export class ProductService {
       throw new Error(`Error al obtener producto: ${error.message}`);
     }
 
-    return data;
+    // Enriquecer con datos del agricultor (JOIN manual)
+    // Nota: Usamos una consulta separada porque la vista no soporta embebidos automáticos
+    const farmerId = (data as any).farmer_id;
+    if (farmerId) {
+      const { data: farmerData } = await supabaseAdmin
+        .from('farmers')
+        .select('id, first_name, last_name, profile_image_url')
+        .eq('id', farmerId)
+        .single();
+
+      const enriched: any = {
+        ...data,
+        farmer: farmerData
+          ? {
+              id: farmerData.id,
+              first_name: farmerData.first_name,
+              last_name: farmerData.last_name,
+              image: farmerData.profile_image_url,
+            }
+          : null,
+      };
+
+      return enriched as ProductWithVariants;
+    }
+
+    return data as ProductWithVariants;
   }
 
   // Crear nuevo producto
@@ -88,16 +114,60 @@ export class ProductService {
   }
 
   // Actualizar producto
-  static async updateProduct(id: string, productData: Partial<Omit<Product, 'id' | 'created_at' | 'updated_at'>>): Promise<Product> {
+  static async updateProduct(id: string, productData: any): Promise<Product> {
+    // Normalizar variantes si llegan en el payload
+    const variants: any[] = Array.isArray(productData?.variants) ? productData.variants : [];
+    const toNumber = (val: any, integer = false) => {
+      if (val === null || val === undefined) return 0;
+      const n = Number(val);
+      if (!Number.isFinite(n)) return 0;
+      return integer ? Math.trunc(n) : n;
+    };
+    const normalizedVariants = variants.map((v) => ({
+      id: v.id || undefined,
+      product_id: id,
+      name: String(v.name || ''),
+      description: v.description ? String(v.description) : null,
+      price: toNumber(v.price),
+      stock_quantity: toNumber(v.stock_quantity, true),
+      sku: v.sku ? String(v.sku) : null,
+      weight: v.weight !== undefined && v.weight !== null ? toNumber(v.weight) : null,
+      unit: v.unit ? String(v.unit) : null,
+      pieces: v.pieces !== undefined && v.pieces !== null ? toNumber(v.pieces, true) : null,
+    }));
+
+    // Quitar variants del objeto de producto antes de actualizar la tabla products
+    const { variants: _omit, ...productFields } = productData;
+
     const { data, error } = await supabaseAdmin
       .from('products')
-      .update({ ...productData, updated_at: new Date().toISOString() })
+      .update({ ...productFields, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
 
     if (error) {
       throw new Error(`Error al actualizar producto: ${error.message}`);
+    }
+
+    // Si hay variantes en el payload, reemplazar completamente
+    if (normalizedVariants.length > 0) {
+      // Eliminar existentes
+      const { error: delError } = await supabaseAdmin
+        .from('product_variants')
+        .delete()
+        .eq('product_id', id);
+      if (delError) {
+        throw new Error(`Error al borrar variantes existentes: ${delError.message}`);
+      }
+
+      // Insertar nuevas
+      const { error: insError } = await supabaseAdmin
+        .from('product_variants')
+        .insert(normalizedVariants);
+      if (insError) {
+        throw new Error(`Error al insertar variantes: ${insError.message}`);
+      }
     }
 
     return data;

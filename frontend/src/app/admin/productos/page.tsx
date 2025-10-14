@@ -148,11 +148,35 @@ export default function ProductsManagementPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Construir payload de variantes: usar las existentes y añadir la variante en edición si procede
+      const toNumber = (val: any, integer: boolean = false) => {
+        if (val === null || val === undefined) return 0;
+        const n = Number(val);
+        if (!Number.isFinite(n)) return 0;
+        return integer ? Math.trunc(n) : n;
+      };
+
+      const normalizeVariant = (v: any) => ({
+        ...v,
+        price: toNumber(v.price),
+        stock_quantity: toNumber(v.stock_quantity, true),
+        weight: v.weight !== undefined ? toNumber(v.weight) : undefined,
+        pieces: v.pieces !== undefined ? toNumber(v.pieces, true) : undefined,
+      });
+
+      let variantsPayload = [...variants].map(normalizeVariant);
+      const isNewVariantPending = !editingVariant && showVariantForm && variantFormData.name.trim() && variantFormData.price > 0;
+      if (isNewVariantPending) {
+        variantsPayload.push(normalizeVariant({ ...variantFormData, id: undefined }));
+      }
+
+      const payload = { ...formData, variants: variantsPayload } as any;
+
       if (editingProduct) {
-        await apiClient.put(`/products/${editingProduct.id}`, formData);
+        await apiClient.put(`/products/${editingProduct.id}`, payload);
         alert('Producto actualizado con éxito');
       } else {
-        await apiClient.post('/products', formData);
+        await apiClient.post('/products', payload);
         alert('Producto creado con éxito');
       }
       

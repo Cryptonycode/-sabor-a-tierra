@@ -1,25 +1,55 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { Product } from '@/types/cart';
-import { getProductById } from '@/data/products';
+import { apiClient } from '@/lib/api';
 import Footer from '@/components/Footer';
 
 export default function ProductPage() {
   const params = useParams();
   const { addToCart, openCart } = useCart();
-  const [selectedSize, setSelectedSize] = useState(0);
+  const [selectedVariant, setSelectedVariant] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
   const [showFullStory, setShowFullStory] = useState(false);
+  const [product, setProduct] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const productId = parseInt(params.id as string);
-  const product = getProductById(productId);
+  const productId = String(params.id);
 
-  if (!product) {
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        setLoading(true);
+        const data = await apiClient.get<any>(`/products/${productId}`);
+        setProduct(data);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error cargando producto:', err);
+        setError('No se pudo cargar el producto');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (productId) fetchProduct();
+  }, [productId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando producto...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !product) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -32,8 +62,9 @@ export default function ProductPage() {
     );
   }
 
-  const currentSize = product.sizes[selectedSize];
-  const finalPrice = currentSize.price * (1 - currentSize.discount / 100);
+  const variants: any[] = Array.isArray(product.variants) ? product.variants : [];
+  const currentVariant = variants[selectedVariant] || null;
+  const finalPrice = currentVariant ? Number(currentVariant.price) : Number(product.price || 0);
 
   const handleAddToCart = async () => {
     setIsAdding(true);
@@ -77,13 +108,15 @@ export default function ProductPage() {
             {/* Galería de imágenes */}
             <div className="space-y-4">
               <div className="relative aspect-square overflow-hidden rounded-lg bg-white shadow-sm">
-                <Image
-                  src={product.imageUrl}
-                  alt={product.name}
-                  fill
-                  className="object-cover"
-                  priority
-                />
+                {product.main_image_url && (
+                  <Image
+                    src={product.main_image_url}
+                    alt={product.name}
+                    fill
+                    className="object-cover"
+                    priority
+                  />
+                )}
               </div>
             </div>
 
@@ -104,51 +137,47 @@ export default function ProductPage() {
                 <p className="text-gray-600 mb-6">{product.description}</p>
               </div>
 
-              {/* Precios y tamaños */}
+              {/* Variantes */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Tamaño</h3>
-                <div className="space-y-3">
-                  {product.sizes.map((size, index) => (
-                    <div
-                      key={index}
-                      onClick={() => setSelectedSize(index)}
-                      className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        selectedSize === index
-                          ? 'border-primary bg-primary/5'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-medium">{size.name} - {size.weight}</p>
-                          <p className="text-sm text-gray-600">{size.pieces}</p>
-                          {size.discount > 0 && (
-                            <p className="text-xs text-green-600 font-medium">
-                              {size.discount}% de ahorro en precio y transporte
-                            </p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          {size.discount > 0 ? (
-                            <>
-                              <p className="text-lg font-bold text-accent">
-                                €{(size.price * (1 - size.discount / 100)).toFixed(2)} EUR
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Variantes</h3>
+                {variants.length === 0 ? (
+                  <p className="text-sm text-gray-600">No hay variantes disponibles para este producto.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {variants.map((variant, index) => (
+                      <div
+                        key={variant.id || index}
+                        onClick={() => setSelectedVariant(index)}
+                        className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                          selectedVariant === index
+                            ? 'border-primary bg-primary/5'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-medium">{variant.name}</p>
+                            {variant.description && (
+                              <p className="text-sm text-gray-600">{variant.description}</p>
+                            )}
+                            {(variant.weight || variant.pieces || variant.unit) && (
+                              <p className="text-xs text-gray-500">
+                                {variant.weight ? `${variant.weight}${variant.unit || ''}` : ''}
+                                {variant.pieces ? ` · ${variant.pieces} uds` : ''}
                               </p>
-                              <p className="text-sm text-gray-500 line-through">
-                                €{size.price.toFixed(2)}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="text-lg font-bold text-accent">
-                              €{size.price.toFixed(2)} EUR
-                            </p>
-                          )}
-                          <p className="text-xs text-gray-500">€{(finalPrice / parseFloat(size.weight)).toFixed(2)} / {product.unit}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-accent">€{Number(variant.price).toFixed(2)} EUR</p>
+                            {typeof variant.stock_quantity === 'number' && (
+                              <p className="text-xs text-gray-500">Stock: {variant.stock_quantity}</p>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
                 <p className="text-sm text-gray-600 mt-2">Impuesto incluido.</p>
               </div>
 
@@ -304,18 +333,20 @@ export default function ProductPage() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-center">
                 <div className="relative aspect-square rounded-lg overflow-hidden">
-                  <Image
-                    src={product.farmer.image}
-                    alt={product.farmer.name}
-                    fill
-                    className="object-cover"
-                  />
+                  {product.farmer?.image && (
+                    <Image
+                      src={product.farmer.image}
+                      alt={product.farmer.name}
+                      fill
+                      className="object-cover"
+                    />
+                  )}
                 </div>
                 
                 <div>
                   <h3 className="text-xl font-bold text-primary mb-4">{product.farmer.name}</h3>
                   <p className="text-gray-600 mb-4">
-                    {showFullStory ? product.farmer.story : `${product.farmer.story.slice(0, 200)}...`}
+                    {showFullStory ? product.farmer.story : product.farmer.story?.slice(0, 200)}
                   </p>
                   <button
                     onClick={() => setShowFullStory(!showFullStory)}
