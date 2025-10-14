@@ -35,9 +35,12 @@ export class VariantService {
 
   // Crear una nueva variante
   static async createVariant(variantData: Partial<ProductVariant>): Promise<ProductVariant> {
+    // Eliminar propiedad inexistente en la tabla
+    const { is_available: _omit, ...insertData } = (variantData as any) || {};
+
     const { data, error } = await supabaseAdmin
       .from('product_variants')
-      .insert([variantData])
+      .insert([insertData])
       .select()
       .single();
 
@@ -78,12 +81,23 @@ export class VariantService {
 
   // Crear múltiples variantes de una vez
   static async createVariantsBatch(variants: Partial<ProductVariant>[]): Promise<ProductVariant[]> {
+    
+    // --- INICIO DE LA CORRECCIÓN ---
+    // Mapeamos el array para asegurarnos de que ningún objeto contenga
+    // propiedades que no existen en la tabla 'product_variants'.
+    const cleanVariants = variants.map(variant => {
+      const { is_available: _omit, ...rest } = (variant as any) || {};
+      return rest;
+    });
+    // --- FIN DE LA CORRECCIÓN ---
+
     const { data, error } = await supabaseAdmin
       .from('product_variants')
-      .insert(variants)
+      .insert(cleanVariants) // Usamos el array limpio en lugar del original
       .select();
 
     if (error) {
+      console.error('Error de Supabase al insertar variantes en lote:', error);
       throw new Error(`Error al crear variantes: ${error.message}`);
     }
 
@@ -104,4 +118,3 @@ export class VariantService {
 }
 
 export default VariantService;
-

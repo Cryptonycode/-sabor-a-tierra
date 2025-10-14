@@ -93,7 +93,15 @@ router.post('/', async (req: Request, res: Response) => {
 
 // PUT /api/products/:id - Actualizar producto
 router.put('/:id', async (req: Request, res: Response) => {
+  // ==========================================================
+// INICIO DEL CÓDIGO DE DEPURACIÓN DEFINITIVO
+// ==========================================================
+console.log('--- DEBUG: Petición PUT a /api/products/:id RECIBIDA ---');
+console.log('--- DATOS CRUDOS RECIBIDOS EN req.body.variants: ---');
+console.log(req.body.variants);
+// ==========================================================
   try {
+    
     const { id } = req.params;
     const productData = req.body;
     const product = await ProductService.updateProduct(id, productData);
