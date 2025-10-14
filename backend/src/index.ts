@@ -17,6 +17,7 @@ import farmerApplicationRoutes from './routes/farmerApplicationRoutes';
 import newsletterRoutes from './routes/newsletterRoutes';
 import adminRoutes from './routes/adminRoutes';
 import authRoutes from './routes/authRoutes';
+import uploadsRoutes from './routes/uploadsRoutes';
 
 // Configuración de variables de entorno
 dotenv.config();
@@ -84,6 +85,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/products', require('./routes/variantRoutes').default); // Rutas de variantes
 app.use('/api', require('./routes/variantRoutes').default); // Rutas de variantes por ID
+app.use('/api/uploads', uploadsRoutes); // Rutas de subida de imágenes
 app.use('/api/orders', orderRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/farmers', farmerRoutes);

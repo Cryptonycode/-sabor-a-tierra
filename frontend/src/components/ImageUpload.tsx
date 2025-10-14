@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
 import Image from 'next/image';
+import { authAPI } from '@/lib/authApi';
 
 interface ImageUploadProps {
   currentImageUrl?: string;
@@ -46,10 +47,15 @@ export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 
       const formData = new FormData();
       formData.append('image', file);
 
-      const response = await fetch('/api/uploads/product-image', {
+      const uploadUrl = '/api/uploads/product-image';
+      console.log('🖼️ ImageUpload → Subiendo a URL:', uploadUrl);
+      const token = authAPI.getToken();
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const response = await fetch(uploadUrl, {
         method: 'POST',
         body: formData,
         credentials: 'include',
+        headers,
       });
 
       const data = await response.json();
