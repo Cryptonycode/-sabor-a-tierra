@@ -5,6 +5,7 @@ import ProductCard from '@/components/ProductCard';
 import TestimonialCard from '@/components/TestimonialCard';
 import Footer from '@/components/Footer';
 import { useEffect, useState } from 'react';
+import { apiClient } from '@/lib/api';
 
 const heroSlides = [
   '/slide1.jpg',
@@ -14,37 +15,14 @@ const heroSlides = [
   '/slide5.jpg',
 ];
 
-// Datos de ejemplo para productos destacados
-const featuredProducts = [
-  {
-    id: 1,
-    name: 'Tomates Raf',
-    price: 4.99,
-    imageUrl: 'https://images.pexels.com/photos/9475238/pexels-photo-9475238.jpeg?w=500&h=500&fit=crop',
-    unit: 'kg' as const,
-  },
-  {
-    id: 2,
-    name: 'Aceite de Oliva Virgen Extra',
-    price: 12.99,
-    imageUrl: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=500&h=500&fit=crop',
-    unit: 'caja' as const,
-  },
-  {
-    id: 3,
-    name: 'Naranjas Ecológicas',
-    price: 3.99,
-    imageUrl: 'https://images.unsplash.com/photo-1547514701-42782101795e?w=500&h=500&fit=crop',
-    unit: 'kg' as const,
-  },
-  {
-    id: 4,
-    name: 'Aguacates Hass',
-    price: 5.99,
-    imageUrl: 'https://images.pexels.com/photos/3687927/pexels-photo-3687927.jpeg?w=500&h=500&fit=crop',
-    unit: 'kg' as const,
-  },
-];
+interface FeaturedProduct {
+  id: string;
+  name: string;
+  price: number;
+  main_image_url: string;
+  unit: string;
+  category?: string;
+}
 
 // Datos de ejemplo para testimonios
 const testimonials = [
@@ -70,12 +48,32 @@ const testimonials = [
 
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
     }, 15000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Cargar productos destacados desde la API
+  useEffect(() => {
+    const fetchFeaturedProducts = async () => {
+      try {
+        setLoadingProducts(true);
+        const products = await apiClient.get<FeaturedProduct[]>('/products/featured');
+        setFeaturedProducts(products.slice(0, 4)); // Mostrar solo 4 productos
+      } catch (error) {
+        console.error('Error al cargar productos destacados:', error);
+        setFeaturedProducts([]);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+
+    fetchFeaturedProducts();
   }, []);
 
   return (

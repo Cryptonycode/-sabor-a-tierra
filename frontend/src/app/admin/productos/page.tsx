@@ -1,6 +1,20 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
+import ImageUpload from '@/components/ImageUpload';
+
+interface ProductVariant {
+  id?: string;
+  name: string;
+  description?: string;
+  price: number;
+  stock_quantity: number;
+  sku?: string;
+  weight?: number;
+  unit?: string;
+  pieces?: number;
+  is_available: boolean;
+}
 
 interface Product {
   id: string;
@@ -19,6 +33,7 @@ interface Product {
   stock_quantity: number;
   status: 'draft' | 'published' | 'archived';
   featured: boolean;
+  variants?: ProductVariant[];
   created_at: string;
   updated_at: string;
 }
@@ -53,8 +68,24 @@ export default function ProductsManagementPage() {
     main_image_url: '',
     is_available: true,
     stock_quantity: 0,
-    status: 'draft',
+    status: 'published', // Cambiado de 'draft' a 'published'
     featured: false
+  });
+
+  // Estado para gestionar variantes
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [showVariantForm, setShowVariantForm] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(null);
+  const [variantFormData, setVariantFormData] = useState<ProductVariant>({
+    name: '',
+    description: '',
+    price: 0,
+    stock_quantity: 0,
+    sku: '',
+    weight: 0,
+    unit: 'kg',
+    pieces: 1,
+    is_available: true
   });
 
   const categories = [
@@ -133,7 +164,18 @@ export default function ProductsManagementPage() {
     }
   };
 
-  const handleEdit = (product: Product) => {
+  // Cargar variantes de un producto
+  const fetchVariants = async (productId: string) => {
+    try {
+      const response = await apiClient.get<ProductVariant[]>(`/products/${productId}/variants`);
+      setVariants(response);
+    } catch (error) {
+      console.error('Error al cargar variantes:', error);
+      setVariants([]);
+    }
+  };
+
+  const handleEdit = async (product: Product) => {
     setEditingProduct(product);
     setFormData({
       name: product.name,
@@ -148,6 +190,9 @@ export default function ProductsManagementPage() {
       status: product.status,
       featured: product.featured
     });
+    
+    // Cargar variantes del producto
+    await fetchVariants(product.id);
     setShowModal(true);
   };
 
@@ -167,6 +212,9 @@ export default function ProductsManagementPage() {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingProduct(null);
+    setVariants([]);
+    setShowVariantForm(false);
+    setEditingVariant(null);
     setFormData({
       name: '',
       description: '',
@@ -177,9 +225,99 @@ export default function ProductsManagementPage() {
       main_image_url: '',
       is_available: true,
       stock_quantity: 0,
-      status: 'draft',
+      status: 'published',
       featured: false
     });
+    setVariantFormData({
+      name: '',
+      description: '',
+      price: 0,
+      stock_quantity: 0,
+      sku: '',
+      weight: 0,
+      unit: 'kg',
+      pieces: 1,
+      is_available: true
+    });
+  };
+
+  // Gestión de variantes
+  const handleAddVariant = () => {
+    setEditingVariant(null);
+    setVariantFormData({
+      name: '',
+      description: '',
+      price: 0,
+      stock_quantity: 0,
+      sku: '',
+      weight: 0,
+      unit: formData.unit,
+      pieces: 1,
+      is_available: true
+    });
+    setShowVariantForm(true);
+  };
+
+  const handleEditVariant = (variant: ProductVariant) => {
+    setEditingVariant(variant);
+    setVariantFormData(variant);
+    setShowVariantForm(true);
+  };
+
+  const handleSaveVariant = async () => {
+    if (!editingProduct) {
+      alert('Debes guardar el producto primero antes de añadir variantes');
+      return;
+    }
+
+    try {
+      if (editingVariant && editingVariant.id) {
+        // Actualizar variante existente
+        await apiClient.put(`/variants/${editingVariant.id}`, variantFormData);
+      } else {
+        // Crear nueva variante
+        await apiClient.post(`/products/${editingProduct.id}/variants`, variantFormData);
+      }
+      
+      // Recargar variantes
+      await fetchVariants(editingProduct.id);
+      
+      // Resetear formulario
+      setShowVariantForm(false);
+      setEditingVariant(null);
+      setVariantFormData({
+        name: '',
+        description: '',
+        price: 0,
+        stock_quantity: 0,
+        sku: '',
+        weight: 0,
+        unit: 'kg',
+        pieces: 1,
+        is_available: true
+      });
+    } catch (error) {
+      console.error('Error al guardar variante:', error);
+      alert('Error al guardar la variante');
+    }
+  };
+
+  const handleDeleteVariant = async (variantId: string) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar esta variante?')) {
+      return;
+    }
+
+    try {
+      await apiClient.delete(`/variants/${variantId}`);
+      
+      // Recargar variantes
+      if (editingProduct) {
+        await fetchVariants(editingProduct.id);
+      }
+    } catch (error) {
+      console.error('Error al eliminar variante:', error);
+      alert('Error al eliminar la variante');
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -336,73 +474,45 @@ export default function ProductsManagementPage() {
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Basic Info */}
-                <div className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Grid compacto de 2 columnas */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Columna izquierda */}
+                <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Nombre del Producto</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Nombre del Producto</label>
                     <input
                       type="text"
                       required
                       value={formData.name}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                      className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Categoría</label>
-                    <select
-                      required
-                      value={formData.category}
-                      onChange={(e) => setFormData({...formData, category: e.target.value})}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                    >
-                      <option value="">Seleccionar categoría</option>
-                      {categories.map(category => (
-                        <option key={category} value={category}>{category}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Agricultor</label>
-                    <select
-                      required
-                      value={formData.farmer_id}
-                      onChange={(e) => setFormData({...formData, farmer_id: e.target.value})}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                    >
-                      <option value="">Seleccionar agricultor</option>
-                      {farmers.map(farmer => (
-                        <option key={farmer.id} value={farmer.id}>
-                          {farmer.first_name} {farmer.last_name} {farmer.business_name && `(${farmer.business_name})`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Precio</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Categoría</label>
+                      <select
                         required
-                        value={formData.price}
-                        onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value)})}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                      />
+                        value={formData.category}
+                        onChange={(e) => setFormData({...formData, category: e.target.value})}
+                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                      >
+                        <option value="">Seleccionar</option>
+                        {categories.map(category => (
+                          <option key={category} value={category}>{category}</option>
+                        ))}
+                      </select>
                     </div>
+
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Unidad</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Unidad</label>
                       <select
                         required
                         value={formData.unit}
                         onChange={(e) => setFormData({...formData, unit: e.target.value})}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
                       >
                         {units.map(unit => (
                           <option key={unit.value} value={unit.value}>{unit.label}</option>
@@ -410,48 +520,76 @@ export default function ProductsManagementPage() {
                       </select>
                     </div>
                   </div>
-                </div>
-
-                {/* Additional Info */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">URL de Imagen Principal</label>
-                    <input
-                      type="url"
-                      value={formData.main_image_url}
-                      onChange={(e) => setFormData({...formData, main_image_url: e.target.value})}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                      placeholder="https://example.com/image.jpg"
-                    />
-                  </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Stock</label>
-                    <input
-                      type="number"
-                      min="0"
-                      required
-                      value={formData.stock_quantity}
-                      onChange={(e) => setFormData({...formData, stock_quantity: parseInt(e.target.value)})}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Estado</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Agricultor</label>
                     <select
                       required
-                      value={formData.status}
-                      onChange={(e) => setFormData({...formData, status: e.target.value as any})}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                      value={formData.farmer_id}
+                      onChange={(e) => setFormData({...formData, farmer_id: e.target.value})}
+                      className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
                     >
-                      <option value="draft">Borrador</option>
-                      <option value="published">Publicado</option>
-                      <option value="archived">Archivado</option>
+                      <option value="">Seleccionar</option>
+                      {farmers.map(farmer => (
+                        <option key={farmer.id} value={farmer.id}>
+                          {farmer.first_name} {farmer.last_name}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Precio (€)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        required
+                        value={formData.price}
+                        onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value)})}
+                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Stock</label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={formData.stock_quantity}
+                        onChange={(e) => setFormData({...formData, stock_quantity: parseInt(e.target.value)})}
+                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Estado</label>
+                      <select
+                        required
+                        value={formData.status}
+                        onChange={(e) => setFormData({...formData, status: e.target.value as any})}
+                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                      >
+                        <option value="published">Publicado</option>
+                        <option value="draft">Borrador</option>
+                        <option value="archived">Archivado</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Descripción</label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                      placeholder="Describe el producto..."
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-4">
                     <div className="flex items-center">
                       <input
                         type="checkbox"
@@ -460,8 +598,8 @@ export default function ProductsManagementPage() {
                         onChange={(e) => setFormData({...formData, is_available: e.target.checked})}
                         className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
                       />
-                      <label htmlFor="is_available" className="ml-2 block text-sm text-gray-900">
-                        Disponible para venta
+                      <label htmlFor="is_available" className="ml-2 block text-xs text-gray-900">
+                        Disponible
                       </label>
                     </div>
                     
@@ -473,39 +611,180 @@ export default function ProductsManagementPage() {
                         onChange={(e) => setFormData({...formData, featured: e.target.checked})}
                         className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
                       />
-                      <label htmlFor="featured" className="ml-2 block text-sm text-gray-900">
-                        Producto destacado
+                      <label htmlFor="featured" className="ml-2 block text-xs text-gray-900">
+                        ⭐ Destacado
                       </label>
                     </div>
                   </div>
                 </div>
+
+                {/* Columna derecha */}
+                <div className="space-y-3">
+                  {/* Componente de subida de imagen */}
+                  <ImageUpload
+                    currentImageUrl={formData.main_image_url}
+                    onImageUploaded={(url) => setFormData({...formData, main_image_url: url})}
+                    label="Imagen Principal"
+                  />
+
+                  {/* Sección de variantes */}
+                  {editingProduct && (
+                    <div className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <h4 className="text-sm font-semibold text-gray-700">Variantes del Producto</h4>
+                        <button
+                          type="button"
+                          onClick={handleAddVariant}
+                          className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors"
+                        >
+                          + Añadir Variante
+                        </button>
+                      </div>
+
+                      {/* Lista de variantes */}
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {variants.length === 0 ? (
+                          <p className="text-xs text-gray-500 italic">No hay variantes. Añade una para ofrecer diferentes presentaciones.</p>
+                        ) : (
+                          variants.map((variant) => (
+                            <div key={variant.id} className="flex items-center justify-between bg-gray-50 p-2 rounded text-xs">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-800">{variant.name}</p>
+                                <p className="text-gray-600">
+                                  €{variant.price.toFixed(2)} | Stock: {variant.stock_quantity}
+                                  {variant.weight && ` | ${variant.weight}${variant.unit}`}
+                                </p>
+                              </div>
+                              <div className="flex space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditVariant(variant)}
+                                  className="text-blue-600 hover:text-blue-800 px-1"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => variant.id && handleDeleteVariant(variant.id)}
+                                  className="text-red-600 hover:text-red-800 px-1"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {!editingProduct && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-xs text-blue-700">
+                        💡 <strong>Tip:</strong> Guarda el producto primero para poder añadir variantes (diferentes tamaños, presentaciones, etc.)
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Descripción</label>
-                <textarea
-                  required
-                  rows={4}
-                  value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                  placeholder="Describe el producto..."
-                />
-              </div>
+              {/* Formulario de variante (modal interno) */}
+              {showVariantForm && (
+                <div className="border-t pt-4 mt-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                    {editingVariant ? 'Editar Variante' : 'Nueva Variante'}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Nombre</label>
+                      <input
+                        type="text"
+                        value={variantFormData.name}
+                        onChange={(e) => setVariantFormData({...variantFormData, name: e.target.value})}
+                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                        placeholder="ej: Caja 5kg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">SKU</label>
+                      <input
+                        type="text"
+                        value={variantFormData.sku}
+                        onChange={(e) => setVariantFormData({...variantFormData, sku: e.target.value})}
+                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                        placeholder="opcional"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Precio (€)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={variantFormData.price}
+                        onChange={(e) => setVariantFormData({...variantFormData, price: parseFloat(e.target.value)})}
+                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Stock</label>
+                      <input
+                        type="number"
+                        value={variantFormData.stock_quantity}
+                        onChange={(e) => setVariantFormData({...variantFormData, stock_quantity: parseInt(e.target.value)})}
+                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Peso/Cantidad</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={variantFormData.weight}
+                        onChange={(e) => setVariantFormData({...variantFormData, weight: parseFloat(e.target.value)})}
+                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Unidades/Piezas</label>
+                      <input
+                        type="number"
+                        value={variantFormData.pieces}
+                        onChange={(e) => setVariantFormData({...variantFormData, pieces: parseInt(e.target.value)})}
+                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end space-x-2 mt-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowVariantForm(false)}
+                      className="text-xs bg-gray-300 hover:bg-gray-400 text-gray-800 px-3 py-1.5 rounded"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveVariant}
+                      className="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded"
+                    >
+                      Guardar Variante
+                    </button>
+                  </div>
+                </div>
+              )}
 
-              {/* Actions */}
-              <div className="flex justify-end space-x-4 pt-4 border-t">
+              {/* Botones de acción */}
+              <div className="flex justify-end space-x-3 pt-3 border-t">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded"
+                  className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-1.5 px-4 rounded text-sm"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded"
+                  className="bg-primary hover:bg-primary-dark text-white font-medium py-1.5 px-4 rounded text-sm"
                 >
                   {editingProduct ? 'Actualizar' : 'Crear'} Producto
                 </button>

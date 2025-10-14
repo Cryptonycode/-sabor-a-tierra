@@ -3,6 +3,20 @@ import { ProductService } from '../services/productService';
 
 const router = Router();
 
+// GET /api/products/featured - Obtener productos destacados
+router.get('/featured', async (req: Request, res: Response) => {
+  try {
+    const products = await ProductService.getFeaturedProducts();
+    res.json(products);
+  } catch (error) {
+    console.error('Error al obtener productos destacados:', error);
+    res.status(500).json({ 
+      error: 'Error interno del servidor',
+      message: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
 // GET /api/products - Obtener todos los productos
 router.get('/', async (req: Request, res: Response) => {
   try {

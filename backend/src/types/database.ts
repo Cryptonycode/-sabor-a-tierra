@@ -110,6 +110,28 @@ export interface Product {
   updated_at: string;
 }
 
+// 4.1 VARIANTES DE PRODUCTOS
+export interface ProductVariant {
+  id: string;
+  product_id: string;
+  name: string;
+  description?: string;
+  price: number;
+  stock_quantity: number;
+  sku?: string;
+  weight?: number;
+  unit?: string;
+  pieces?: number;
+  is_available: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Producto con variantes
+export interface ProductWithVariants extends Product {
+  variants: ProductVariant[];
+}
+
 // 5. ÓRDENES
 export interface Order {
   id: string;
