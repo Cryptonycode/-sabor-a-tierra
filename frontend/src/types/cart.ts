@@ -1,9 +1,11 @@
 export interface Product {
-  id: number;
+  id: string | number;
+  productId?: string;
+  variantId?: string;
   name: string;
   price: number;
   imageUrl: string;
-  unit: 'kg' | 'caja';
+  unit: string;
   category?: string;
 }
 
@@ -21,9 +23,9 @@ export interface CartState {
 
 export interface CartContextType {
   cart: CartState;
-  addToCart: (product: Product) => void;
-  removeFromCart: (productId: number) => void;
-  updateQuantity: (productId: number, quantity: number) => void;
+  addToCart: (product: Product, quantity?: number) => void;
+  removeFromCart: (productId: string | number) => void;
+  updateQuantity: (productId: string | number, quantity: number) => void;
   clearCart: () => void;
   toggleCart: () => void;
   openCart: () => void;

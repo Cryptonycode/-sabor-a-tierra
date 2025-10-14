@@ -7,6 +7,7 @@ import { useCart } from '@/context/CartContext';
 import { Product } from '@/types/cart';
 import { apiClient } from '@/lib/api';
 import Footer from '@/components/Footer';
+import { toast } from 'react-hot-toast';
 
 export default function ProductPage() {
   const params = useParams();
@@ -67,23 +68,25 @@ export default function ProductPage() {
   const finalPrice = currentVariant ? Number(currentVariant.price) : Number(product.price || 0);
 
   const handleAddToCart = async () => {
+    if (!currentVariant) return;
     setIsAdding(true);
-    
+
     const productToAdd: Product = {
-      id: product.id,
-      name: `${product.name} - ${currentSize.name}`,
+      id: `${product.id}-${currentVariant.id}`,
+      productId: String(product.id),
+      variantId: String(currentVariant.id),
+      name: `${product.name} - ${currentVariant.name}`,
       price: finalPrice,
-      imageUrl: product.imageUrl,
+      imageUrl: product.main_image_url,
       unit: product.unit,
       category: product.category,
-    };
+    } as any;
 
-    for (let i = 0; i < quantity; i++) {
-      addToCart(productToAdd);
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
+    addToCart(productToAdd, quantity);
+
+    await new Promise(resolve => setTimeout(resolve, 300));
     setIsAdding(false);
+    toast.success('¡Producto añadido!');
     openCart();
   };
 
@@ -206,7 +209,7 @@ export default function ProductPage() {
 
                 <button
                   onClick={handleAddToCart}
-                  disabled={isAdding}
+                  disabled={isAdding || !currentVariant}
                   className={`w-full py-4 px-6 rounded-lg font-semibold text-white transition-all ${
                     isAdding
                       ? 'bg-green-600 cursor-not-allowed'
@@ -285,7 +288,7 @@ export default function ProductPage() {
                 <div>
                   <h4 className="font-medium text-gray-800 mb-2">Características:</h4>
                   <ul className="space-y-1">
-                    {product.features.map((feature, index) => (
+                    {(product.features || []).map((feature: any, index: number) => (
                       <li key={index} className="text-gray-600 flex items-start">
                         <span className="text-green-600 mr-2">✓</span>
                         {feature}
@@ -422,7 +425,7 @@ export default function ProductPage() {
               </div>
               <button
                 onClick={handleAddToCart}
-                disabled={isAdding}
+                disabled={isAdding || !currentVariant}
                 className="bg-accent hover:bg-accent/90 text-white font-bold py-2 px-4 sm:py-3 sm:px-6 rounded-lg transition-colors flex items-center space-x-2 text-sm sm:text-base"
               >
                 <span>🛒</span>
