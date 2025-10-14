@@ -70,7 +70,7 @@ export class ProductService {
       min_order_quantity: productData.min_order_quantity || 1,
       requires_cold_shipping: productData.requires_cold_shipping || false,
       is_available: true,
-      status: 'draft',
+      status: 'published',
       featured: false
     };
 

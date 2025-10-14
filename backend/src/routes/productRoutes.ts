@@ -20,7 +20,7 @@ router.get('/featured', async (req: Request, res: Response) => {
 // GET /api/products - Obtener todos los productos
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { category, search } = req.query;
+    const { category, search, includeInactive } = req.query;
 
     let products;
     if (search) {
@@ -28,13 +28,28 @@ router.get('/', async (req: Request, res: Response) => {
     } else if (category) {
       products = await ProductService.getProductsByCategory(category as string);
     } else {
-      products = await ProductService.getAllProducts();
+      const includeAll = String(includeInactive).toLowerCase() === 'true';
+      products = await ProductService.getAllProducts(includeAll);
     }
 
     res.json(products);
   } catch (error) {
     console.error('Error al obtener productos:', error);
     res.status(500).json({ 
+      error: 'Error interno del servidor',
+      message: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
+// GET /api/admin/products - Obtener todos los productos para admin (incluye inactivos y borradores)
+router.get('/admin/list', async (req: Request, res: Response) => {
+  try {
+    const products = await ProductService.getAllProducts(true);
+    return res.json(products);
+  } catch (error) {
+    console.error('Error al obtener productos (admin):', error);
+    return res.status(500).json({
       error: 'Error interno del servidor',
       message: error instanceof Error ? error.message : 'Error desconocido'
     });

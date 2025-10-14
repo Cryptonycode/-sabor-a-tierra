@@ -121,7 +121,7 @@ export default function ProductsManagementPage() {
   const fetchProducts = async () => {
     try {
       console.log('🔄 Obteniendo productos...');
-      const response = await apiClient.get<Product[]>('/products');
+      const response = await apiClient.get<Product[]>('/products?includeInactive=true');
       console.log('✅ Productos recibidos:', response);
       console.log('📊 Cantidad de productos:', response.length);
       setProducts(response);
