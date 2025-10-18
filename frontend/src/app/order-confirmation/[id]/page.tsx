@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api';
+import { useCart } from '@/context/CartContext';
 
 interface Order {
   id: string;
@@ -35,6 +36,7 @@ export default function OrderConfirmationPage() {
   const params = useParams();
   const router = useRouter();
   const orderId = params.id as string;
+  const { clearCart } = useCart();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +46,15 @@ export default function OrderConfirmationPage() {
       fetchOrder();
     }
   }, [orderId]);
+
+  // Limpiar carrito cuando el usuario llega a la página de confirmación
+  useEffect(() => {
+    // Solo limpiar una vez cuando haya un order cargado correctamente
+    if (order && !loading && !error) {
+      clearCart();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order, loading, error]);
 
   const fetchOrder = async () => {
     try {

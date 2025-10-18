@@ -128,18 +128,10 @@ export default function CheckoutPage() {
       };
 
       const response: any = await apiClient.post('/orders', orderData);
-      
-      // Simular procesamiento de pago
-      if (formData.payment_method !== 'cash_on_delivery') {
-        // Aquí iría la integración con pasarela de pago real
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
+      const orderId: string = response.id;
 
-      // Limpiar carrito
-      clearCart();
-
-      // Redirigir a página de confirmación
-      router.push(`/order-confirmation/${response.id}`);
+      // Redirigir a página de confirmación (la limpieza del carrito se hará allí)
+      router.push(`/order-confirmation/${orderId}`);
 
     } catch (error) {
       console.error('Error creating order:', error);
