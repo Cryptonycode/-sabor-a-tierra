@@ -33,22 +33,23 @@ export interface Order {
   order_number: string;
   customer_id?: string;
   customer_email: string;
-  customer_name: string;
+  customer_first_name: string;
+  customer_last_name: string;
   customer_phone: string;
-  delivery_address: string;
-  delivery_city: string;
-  delivery_postal_code: string;
-  delivery_province: string;
-  delivery_notes?: string;
+  shipping_address: string;
+  shipping_city: string;
+  shipping_postal_code: string;
+  shipping_province: string;
+  shipping_notes?: string;
   subtotal: number;
   shipping_cost: number;
   tax_amount: number;
   total_amount: number;
-  order_status: string;
+  status: string;
   payment_status: string;
   payment_method: string;
   tracking_number?: string;
-  estimated_delivery?: string;
+  estimated_delivery_date?: string;
   delivered_at?: string;
   created_at: string;
   updated_at: string;
@@ -89,38 +90,47 @@ export class OrderService {
   private static calculateEstimatedDelivery(): string {
     const deliveryDate = new Date();
     deliveryDate.setDate(deliveryDate.getDate() + 3); // 3 días laborables
-    return deliveryDate.toISOString();
+    // Devolver solo la parte de fecha (YYYY-MM-DD) para columna DATE
+    return deliveryDate.toISOString().slice(0, 10);
   }
 
   // Crear nuevo pedido
   static async createOrder(orderData: CreateOrderData): Promise<Order> {
     const orderId = uuidv4();
     const orderNumber = this.generateOrderNumber();
-    const estimatedDelivery = this.calculateEstimatedDelivery();
+    const estimatedDeliveryDate = this.calculateEstimatedDelivery();
 
     try {
+      // Obtener o crear el cliente y recuperar su ID
+      const customerId = await this.findOrCreateCustomerId(
+        orderData.customer_info,
+        orderData.marketing_consent
+      );
+
       // 1. Crear el pedido principal
       const { data: order, error: orderError } = await supabaseAdmin
         .from('orders')
         .insert([{
           id: orderId,
           order_number: orderNumber,
+          customer_id: customerId,
           customer_email: orderData.customer_info.email,
-          customer_name: `${orderData.customer_info.first_name} ${orderData.customer_info.last_name}`,
+          customer_first_name: orderData.customer_info.first_name,
+          customer_last_name: orderData.customer_info.last_name,
           customer_phone: orderData.customer_info.phone,
-          delivery_address: orderData.delivery_address.address,
-          delivery_city: orderData.delivery_address.city,
-          delivery_postal_code: orderData.delivery_address.postal_code,
-          delivery_province: orderData.delivery_address.province,
-          delivery_notes: orderData.delivery_address.delivery_notes,
+          shipping_address: orderData.delivery_address.address,
+          shipping_city: orderData.delivery_address.city,
+          shipping_postal_code: orderData.delivery_address.postal_code,
+          shipping_province: orderData.delivery_address.province,
+          shipping_notes: orderData.delivery_address.delivery_notes,
           subtotal: orderData.subtotal,
           shipping_cost: orderData.shipping_cost,
           tax_amount: orderData.tax_amount,
           total_amount: orderData.total_amount,
-          order_status: 'pending',
+          status: 'pending',
           payment_status: orderData.payment_method === 'cash_on_delivery' ? 'pending' : 'paid',
           payment_method: orderData.payment_method,
-          estimated_delivery: estimatedDelivery
+          estimated_delivery_date: estimatedDeliveryDate
         }])
         .select()
         .single();
@@ -181,10 +191,7 @@ export class OrderService {
       // 3. Crear entrada en timeline
       await this.addTimelineEntry(orderId, 'pending', 'Pedido recibido y en proceso de confirmación');
 
-      // 4. Crear cliente si no existe (simplificado)
-      await this.createOrUpdateCustomer(orderData.customer_info, orderData.marketing_consent);
-
-      // 5. Actualizar stock de productos (simplificado)
+      // 4. Actualizar stock de productos (simplificado)
       for (const item of orderData.items) {
         await this.updateProductStock(item.product_id, item.quantity);
       }
@@ -270,7 +277,7 @@ export class OrderService {
         .order('created_at', { ascending: false });
 
       if (filters.status) {
-        query = query.eq('order_status', filters.status);
+        query = query.eq('status', filters.status);
       }
 
       if (filters.limit) {
@@ -314,7 +321,7 @@ export class OrderService {
       const { data: order, error: updateError } = await supabaseAdmin
         .from('orders')
         .update({ 
-          order_status: newStatus,
+          status: newStatus,
           updated_at: new Date().toISOString()
         })
         .eq('id', orderId)
@@ -341,7 +348,7 @@ export class OrderService {
       const { data: order, error } = await supabaseAdmin
         .from('orders')
         .update({ 
-          order_status: 'cancelled',
+          status: 'cancelled',
           updated_at: new Date().toISOString()
         })
         .eq('id', orderId)
@@ -473,38 +480,59 @@ export class OrderService {
     }
   }
 
-  private static async createOrUpdateCustomer(
-    customerInfo: CreateOrderData['customer_info'], 
+  private static async findOrCreateCustomerId(
+    customerInfo: CreateOrderData['customer_info'],
     marketingConsent: boolean
-  ): Promise<void> {
+  ): Promise<string> {
     try {
-      // Verificar si el cliente ya existe
-      const { data: existingCustomer } = await supabaseAdmin
+      // Buscar cliente por email
+      const { data: existingCustomer, error: findError } = await supabaseAdmin
         .from('customers')
         .select('id')
         .eq('email', customerInfo.email)
+        .maybeSingle();
+
+      if (findError) {
+        console.warn('Error al buscar cliente por email:', findError.message);
+      }
+
+      if (existingCustomer && existingCustomer.id) {
+        return existingCustomer.id as string;
+      }
+
+      // Crear nuevo cliente
+      const newCustomerId = uuidv4();
+      const { data: createdCustomer, error: createError } = await supabaseAdmin
+        .from('customers')
+        .insert([{ 
+          id: newCustomerId,
+          email: customerInfo.email,
+          first_name: customerInfo.first_name,
+          last_name: customerInfo.last_name,
+          phone: customerInfo.phone,
+          marketing_emails: !!marketingConsent,
+          newsletter_subscribed: false,
+          email_verified: false
+        }])
+        .select('id')
         .single();
 
-      if (!existingCustomer) {
-        // Crear nuevo cliente
-        const { error } = await supabaseAdmin
+      if (createError) {
+        console.warn('Error al crear cliente:', createError.message);
+        // En caso de conflicto por condición de carrera, reintentar obtener id
+        const { data: afterConflict } = await supabaseAdmin
           .from('customers')
-          .insert([{
-            id: uuidv4(),
-            first_name: customerInfo.first_name,
-            last_name: customerInfo.last_name,
-            email: customerInfo.email,
-            phone: customerInfo.phone,
-            marketing_consent: marketingConsent,
-            is_active: true
-          }]);
-
-        if (error) {
-          console.warn('Error al crear cliente:', error.message);
-        }
+          .select('id')
+          .eq('email', customerInfo.email)
+          .single();
+        if (afterConflict?.id) return afterConflict.id as string;
+        throw createError;
       }
+
+      return createdCustomer.id as string;
     } catch (error) {
-      console.warn('Error al gestionar cliente:', error);
+      console.warn('Error al gestionar cliente (findOrCreateCustomerId):', error);
+      throw error;
     }
   }
 

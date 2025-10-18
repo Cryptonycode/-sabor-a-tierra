@@ -177,8 +177,8 @@ router.get('/track/:orderNumber', async (req: Request, res: Response) => {
     // Devolver solo información pública para tracking
     const trackingInfo = {
       order_number: order.order_number,
-      order_status: order.order_status,
-      estimated_delivery: order.estimated_delivery,
+      order_status: order.status,
+      estimated_delivery: order.estimated_delivery_date,
       tracking_number: order.tracking_number,
       created_at: order.created_at,
       timeline: order.timeline || []
