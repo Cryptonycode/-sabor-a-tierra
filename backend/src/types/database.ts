@@ -216,6 +216,7 @@ export interface FarmerApplication {
   province: string;
   description?: string;
   status: 'pending' | 'reviewing' | 'approved' | 'rejected';
+  rejection_reason?: string | null;
   admin_notes?: string;
   reviewed_by?: string;
   reviewed_at?: string;
@@ -330,6 +331,7 @@ export interface FarmerApplication {
   website?: string;
   social_media?: string;
   status: 'pending' | 'approved' | 'rejected';
+  rejection_reason?: string | null;
   notes?: string;
   approved_by?: string;
   approved_at?: string;

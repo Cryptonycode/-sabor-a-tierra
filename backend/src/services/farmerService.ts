@@ -3,14 +3,18 @@ import { Farmer, CreateFarmerRequest, FarmerWithProducts } from '../types/databa
 
 export class FarmerService {
   // Obtener todos los agricultores
-  static async getAllFarmers(includeInactive = false): Promise<Farmer[]> {
+  static async getAllFarmers(includeInactive = false, statusFilter?: string): Promise<Farmer[]> {
     let query = supabaseAdmin
       .from('farmers')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!includeInactive) {
+    if (!includeInactive && !statusFilter) {
       query = query.eq('status', 'approved');
+    }
+
+    if (statusFilter) {
+      query = query.eq('status', statusFilter);
     }
 
     const { data, error } = await query;

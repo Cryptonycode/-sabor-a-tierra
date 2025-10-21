@@ -3,11 +3,11 @@ import { FarmerService } from '../services/farmerService';
 
 const router = Router();
 
-// GET /api/farmers - Obtener todos los agricultores
+// GET /api/farmers - Obtener agricultores con filtrado por estado
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { include_inactive } = req.query;
-    const farmers = await FarmerService.getAllFarmers(include_inactive === 'true');
+    const { include_inactive, status } = req.query as { include_inactive?: string; status?: string };
+    const farmers = await FarmerService.getAllFarmers(include_inactive === 'true', status);
     return res.json(farmers);
   } catch (error) {
     console.error('Error al obtener agricultores:', error);

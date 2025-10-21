@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface FarmerApplication {
   id: string;
@@ -31,22 +32,36 @@ interface FarmerApplication {
 }
 
 export default function FarmerApplicationsPage() {
+  const { admin } = useAuth();
   const [applications, setApplications] = useState<FarmerApplication[]>([]);
+  const [approvedFarmers, setApprovedFarmers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedApplication, setSelectedApplication] = useState<FarmerApplication | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
 
   useEffect(() => {
-    fetchApplications();
+    fetchData();
   }, [filter]);
 
-  const fetchApplications = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const endpoint = filter === 'all' ? '/farmer-applications' : `/farmer-applications?status=${filter}`;
-      const response = await apiClient.get<FarmerApplication[]>(endpoint);
-      setApplications(response);
+      if (filter === 'pending') {
+        const endpoint = '/farmer-applications?status=pending';
+        const response = await apiClient.get<FarmerApplication[]>(endpoint);
+        setApplications(response);
+        setApprovedFarmers([]);
+      } else if (filter === 'approved' || filter === 'rejected') {
+        const farmers = await apiClient.get<any[]>(`/farmers?status=${filter}`);
+        setApprovedFarmers(farmers);
+        setApplications([]);
+      } else {
+        // 'all' -> por simplicidad cargamos todas las aplicaciones
+        const response = await apiClient.get<FarmerApplication[]>(`/farmer-applications`);
+        setApplications(response);
+        setApprovedFarmers([]);
+      }
     } catch (error) {
       console.error('Error fetching applications:', error);
     } finally {
@@ -58,12 +73,12 @@ export default function FarmerApplicationsPage() {
     try {
       setActionLoading(applicationId);
       await apiClient.post(`/farmer-applications/${applicationId}/approve`, {
-        reviewed_by: 'admin-user-id' // En un caso real, esto vendría del contexto de autenticación
+        reviewed_by: admin?.id
       });
       
-      // Actualizar la lista
-      await fetchApplications();
+      // Cambiar a la pestaña de aprobados y cerrar detalle
       setSelectedApplication(null);
+      setFilter('approved');
       
       // Mostrar mensaje de éxito
       alert('Solicitud aprobada con éxito. El agricultor ha sido creado.');
@@ -84,7 +99,7 @@ export default function FarmerApplicationsPage() {
       });
       
       // Actualizar la lista
-      await fetchApplications();
+      await fetchData();
       setSelectedApplication(null);
       
       alert('Solicitud rechazada con éxito.');
@@ -145,10 +160,10 @@ export default function FarmerApplicationsPage() {
         {/* Filter tabs */}
         <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
           {[
-            { key: 'pending', label: 'Pendientes', count: applications.filter(a => a.status === 'pending').length },
-            { key: 'approved', label: 'Aprobados', count: applications.filter(a => a.status === 'approved').length },
-            { key: 'rejected', label: 'Rechazados', count: applications.filter(a => a.status === 'rejected').length },
-            { key: 'all', label: 'Todos', count: applications.length }
+            { key: 'pending', label: 'Pendientes' },
+            { key: 'approved', label: 'Aprobados' },
+            { key: 'rejected', label: 'Rechazados' },
+            { key: 'all', label: 'Todos' }
           ].map((tab) => (
             <button
               key={tab.key}
@@ -159,103 +174,89 @@ export default function FarmerApplicationsPage() {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              {tab.label} ({tab.count})
+              {tab.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Applications List */}
+      {/* Listado condicional: aplicaciones pendientes vs. agricultores aprobados/rechazados */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Agricultor
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Negocio
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Experiencia
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Fecha
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Acciones
-                </th>
+                {filter === 'pending' ? (
+                  <>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agricultor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Negocio</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Experiencia</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agricultor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Negocio</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Provincia</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Creado</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {applications.map((application) => (
+              {filter === 'pending' && applications.map((application) => (
                 <tr key={application.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {application.first_name} {application.last_name}
-                      </div>
+                      <div className="text-sm font-medium text-gray-900">{application.first_name} {application.last_name}</div>
                       <div className="text-sm text-gray-500">{application.email}</div>
                       <div className="text-sm text-gray-500">{application.city}, {application.province}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {application.business_name || 'Sin nombre comercial'}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {getProductionTypeLabel(application.production_type)}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {application.hectares ? `${application.hectares} ha` : 'N/A'}
-                      </div>
+                      <div className="text-sm font-medium text-gray-900">{application.business_name || 'Sin nombre comercial'}</div>
+                      <div className="text-sm text-gray-500">{getProductionTypeLabel(application.production_type)}</div>
+                      <div className="text-sm text-gray-500">{application.hectares ? `${application.hectares} ha` : 'N/A'}</div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {application.farming_experience} años
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(application.status)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(application.created_at).toLocaleDateString('es-ES')}
-                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{application.farming_experience} años</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(application.status)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(application.created_at).toLocaleDateString('es-ES')}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <button
-                        onClick={() => setSelectedApplication(application)}
-                        className="text-indigo-600 hover:text-indigo-900"
-                      >
-                        Ver Detalles
-                      </button>
+                      <button onClick={() => setSelectedApplication(application)} className="text-indigo-600 hover:text-indigo-900">Ver Detalles</button>
                       {application.status === 'pending' && (
                         <>
-                          <button
-                            onClick={() => handleApprove(application.id)}
-                            disabled={actionLoading === application.id}
-                            className="text-green-600 hover:text-green-900 disabled:opacity-50"
-                          >
-                            {actionLoading === application.id ? 'Procesando...' : 'Aprobar'}
-                          </button>
-                          <button
-                            onClick={() => {
-                              const reason = prompt('Motivo del rechazo:');
-                              if (reason) handleReject(application.id, reason);
-                            }}
-                            disabled={actionLoading === application.id}
-                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
-                          >
-                            Rechazar
-                          </button>
+                          <button onClick={() => handleApprove(application.id)} disabled={actionLoading === application.id} className="text-green-600 hover:text-green-900 disabled:opacity-50">{actionLoading === application.id ? 'Procesando...' : 'Aprobar'}</button>
+                          <button onClick={() => { const reason = prompt('Motivo del rechazo:'); if (reason) handleReject(application.id, reason); }} disabled={actionLoading === application.id} className="text-red-600 hover:text-red-900 disabled:opacity-50">Rechazar</button>
                         </>
                       )}
                     </div>
                   </td>
+                </tr>
+              ))}
+
+              {filter !== 'pending' && approvedFarmers.map((farmer) => (
+                <tr key={farmer.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{farmer.first_name} {farmer.last_name}</div>
+                      <div className="text-sm text-gray-500">{farmer.email}</div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{farmer.business_name || 'Sin nombre comercial'}</div>
+                      <div className="text-sm text-gray-500">{farmer.specialties?.join(', ') || '—'}</div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{farmer.province}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(farmer.status)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(farmer.created_at).toLocaleDateString('es-ES')}</td>
                 </tr>
               ))}
             </tbody>

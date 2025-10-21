@@ -29,10 +29,10 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       description: 'Gestionar productos'
     },
     { 
-      name: 'Solicitudes Agricultores', 
+      name: 'Agricultores', 
       href: '/admin/agricultores', 
       icon: '👨‍🌾',
-      description: 'Aprobar nuevos agricultores'
+      description: 'Gestionar y aprobar agricultores'
     },
     { 
       name: 'Pedidos', 
