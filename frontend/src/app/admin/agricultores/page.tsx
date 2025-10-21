@@ -111,6 +111,21 @@ export default function FarmerApplicationsPage() {
     }
   };
 
+  const handleRejectFarmer = async (farmerId: string) => {
+    try {
+      if (!confirm('¿Seguro que deseas rechazar a este agricultor?')) return;
+      setActionLoading(farmerId);
+      await apiClient.post(`/farmers/${farmerId}/reject`, {});
+      await fetchData();
+      alert('Agricultor rechazado correctamente.');
+    } catch (error) {
+      console.error('Error rejecting farmer:', error);
+      alert('Error al rechazar el agricultor.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const badges = {
       pending: 'bg-yellow-100 text-yellow-800',
@@ -202,6 +217,7 @@ export default function FarmerApplicationsPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Provincia</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Creado</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                   </>
                 )}
               </tr>
@@ -257,6 +273,17 @@ export default function FarmerApplicationsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{farmer.province}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(farmer.status)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(farmer.created_at).toLocaleDateString('es-ES')}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    {farmer.status === 'approved' ? (
+                      <button
+                        onClick={() => handleRejectFarmer(farmer.id)}
+                        disabled={actionLoading === farmer.id}
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                      >
+                        {actionLoading === farmer.id ? 'Procesando...' : 'Rechazar'}
+                      </button>
+                    ) : null}
+                  </td>
                 </tr>
               ))}
             </tbody>
