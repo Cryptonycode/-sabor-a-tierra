@@ -1,8 +1,12 @@
 'use client';
 import Image from 'next/image';
+import Link from 'next/link';
+import { useState } from 'react';
 import Footer from '@/components/Footer';
+import FarmerRegistrationModal from '@/components/FarmerRegistrationModal';
 
 export default function AboutUsPage() {
+  const [isFarmerModalOpen, setIsFarmerModalOpen] = useState(false);
   return (
     <div>
       <main className="min-h-screen bg-gray-50">
@@ -122,12 +126,17 @@ export default function AboutUsPage() {
               Ya sea como agricultor o consumidor, tú puedes ser parte del cambio hacia un sistema alimentario más justo y sostenible.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button className="bg-white text-accent font-bold py-3 px-8 rounded-lg hover:bg-gray-100 transition-colors">
+              <button
+                className="bg-white text-accent font-bold py-3 px-8 rounded-lg hover:bg-gray-100 transition-colors"
+                onClick={() => setIsFarmerModalOpen(true)}
+              >
                 Registrarse como Agricultor
               </button>
-              <button className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-colors">
-                Explorar Productos
-              </button>
+              <Link href="/productos">
+                <button className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-colors">
+                  Explorar Productos
+                </button>
+              </Link>
             </div>
           </div>
         </section>
@@ -177,6 +186,10 @@ export default function AboutUsPage() {
           </div>
         </section>
       </main>
+      <FarmerRegistrationModal
+        isOpen={isFarmerModalOpen}
+        onClose={() => setIsFarmerModalOpen(false)}
+      />
       <Footer />
     </div>
   );
