@@ -5,12 +5,18 @@ import { FarmerService } from './farmerService';
 export class FarmerApplicationService {
   // Crear nueva aplicación
   static async createApplication(applicationData: Omit<FarmerApplication, 'id' | 'status' | 'created_at' | 'updated_at'>): Promise<FarmerApplication> {
+    // Normalizar nombre de columna de imagen: usar profile_image_path y eliminar profile_image_url si viene del frontend
+    const { profile_image_url, ...rest } = applicationData as any;
+    const insertData = {
+      ...rest,
+      // Si el frontend envía profile_image_path úsalo; si envía profile_image_url, mapearlo a *_path
+      profile_image_path: (applicationData as any).profile_image_path ?? profile_image_url ?? null,
+      status: 'pending'
+    } as any;
+
     const { data, error } = await supabaseAdmin
       .from('farmer_applications')
-      .insert([{
-        ...applicationData,
-        status: 'pending'
-      }])
+      .insert([insertData])
       .select()
       .single();
 
