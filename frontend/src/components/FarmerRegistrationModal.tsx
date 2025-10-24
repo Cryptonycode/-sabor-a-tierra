@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { farmerApplicationApi, FarmerApplicationData } from '@/lib/farmerApplicationApi';
+import ImageUpload from './ImageUpload';
 
 interface FarmerRegistrationModalProps {
   isOpen: boolean;
@@ -11,23 +12,23 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
   const [formData, setFormData] = useState({
     nombre: '',
     apellidos: '',
-    nombreNegocio: '',
     email: '',
     telefono: '',
     direccion: '',
     codigoPostal: '',
     ciudad: '',
     provincia: '',
-    tipoProduccion: 'conventional',
-    productos: '',
+    produccionEco: false,
     descripcion: '',
-    certificaciones: '',
     experiencia: '1',
     hectareas: '',
+    profile_image_path: ''
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,22 +36,39 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
     setSubmitError(null);
 
     try {
+      // Validación de teléfono
+      const phoneRegex = /^\+?[0-9]{7,15}$/;
+      if (!phoneRegex.test(formData.telefono)) {
+        setPhoneError('Introduce un teléfono válido (7-15 dígitos, opcional "+").');
+        setIsSubmitting(false);
+        return;
+      } else {
+        setPhoneError(null);
+      }
+
+      // Validación de privacidad
+      if (!privacyAccepted) {
+        setSubmitError('Debes aceptar el aviso de privacidad para continuar.');
+        setIsSubmitting(false);
+        return;
+      }
       const applicationData: FarmerApplicationData = {
         first_name: formData.nombre,
         last_name: formData.apellidos,
         email: formData.email,
         phone: formData.telefono,
-        business_name: formData.nombreNegocio || undefined,
         address: formData.direccion,
         postal_code: formData.codigoPostal,
         city: formData.ciudad,
         province: formData.provincia,
         farming_experience: parseInt(formData.experiencia),
         hectares: formData.hectareas ? parseFloat(formData.hectareas) : undefined,
-        production_type: formData.tipoProduccion as 'organic' | 'conventional' | 'integrated',
-        main_products: formData.productos.split(',').map(p => p.trim()).filter(p => p).join(', '),
+        production_type: (formData.produccionEco ? 'organic' : 'conventional') as 'organic' | 'conventional',
+        // Campo requerido por el backend, pero eliminado del formulario → enviar vacío
+        main_products: '',
         description: formData.descripcion,
-        certifications: formData.certificaciones ? formData.certificaciones : undefined,
+        // Extendemos datos enviados si backend lo admite; si no, se ignora
+        profile_image_url: formData.profile_image_path || undefined,
       };
 
       await farmerApplicationApi.submit(applicationData);
@@ -76,20 +94,19 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
       setFormData({
         nombre: '',
         apellidos: '',
-        nombreNegocio: '',
         email: '',
         telefono: '',
         direccion: '',
         codigoPostal: '',
         ciudad: '',
         provincia: '',
-        tipoProduccion: 'conventional',
-        productos: '',
+        produccionEco: false,
         descripcion: '',
-        certificaciones: '',
         experiencia: '1',
         hectareas: '',
+        profile_image_path: ''
       });
+      setPrivacyAccepted(false);
     } catch (error) {
       console.error('Error submitting farmer application:', error);
       setSubmitError('Hubo un error al enviar tu solicitud. Por favor, inténtalo de nuevo.');
@@ -115,25 +132,25 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 overflow-y-auto">
-        <div className="flex min-h-full items-center justify-center p-2 sm:p-4">
+            <div className="flex min-h-full items-center justify-center p-2 sm:p-6">
           <div 
-            className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+            className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="bg-primary text-white px-6 py-4 rounded-t-xl">
+            <div className="bg-primary text-white px-6 py-5 rounded-t-2xl">
               <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold">Registro de Agricultor</h2>
+                <h2 className="text-2xl font-bold tracking-tight">Registro de Agricultor</h2>
                 <button
                   onClick={onClose}
-                  className="text-white hover:text-accent transition-colors"
+                  className="text-white/90 hover:text-white transition-colors"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
-              <p className="mt-2 text-sm opacity-90">
+                <p className="mt-2 text-sm opacity-90">
                 Únete a nuestra comunidad de productores locales
               </p>
             </div>
@@ -152,11 +169,11 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
             )}
 
             {/* Formulario */}
-            <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <form onSubmit={handleSubmit} className="p-5 sm:p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {/* Información Personal */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Información Personal</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Información Personal</h3>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -168,7 +185,7 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
                       required
                       value={formData.nombre}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-900 bg-white shadow-sm"
                       placeholder="Tu nombre"
                     />
                   </div>
@@ -183,7 +200,7 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
                       required
                       value={formData.apellidos}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-900 bg-white shadow-sm"
                       placeholder="Tus apellidos"
                     />
                   </div>
@@ -198,7 +215,7 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
                       required
                       value={formData.email}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-900 bg-white shadow-sm"
                       placeholder="tu@email.com"
                     />
                   </div>
@@ -207,87 +224,44 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Teléfono*
                     </label>
-                    <input
+                  <input
                       type="tel"
                       name="telefono"
                       required
                       value={formData.telefono}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
+                    onChange={(e) => { handleChange(e); if (phoneError) setPhoneError(null); }}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-900 bg-white shadow-sm"
                       placeholder="+34 600 000 000"
                     />
+                  {phoneError && (
+                    <p className="mt-1 text-xs text-red-600">{phoneError}</p>
+                  )}
                   </div>
                 </div>
 
                 {/* Información del Negocio */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Información del Negocio</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Información de Producción</h3>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nombre del Negocio
-                    </label>
+                  <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <input
-                      type="text"
-                      name="nombreNegocio"
-                      value={formData.nombreNegocio}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
-                      placeholder="Nombre de tu negocio o finca"
+                      id="produccionEco"
+                      type="checkbox"
+                      checked={formData.produccionEco}
+                      onChange={(e) => setFormData(prev => ({ ...prev, produccionEco: e.target.checked }))}
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tipo de Producción*
+                    <label htmlFor="produccionEco" className="text-sm text-gray-700">
+                      <span className="block font-medium text-gray-900">Producción Ecológica</span>
+                      <span className="block text-gray-500">Marca esta opción si tu producción está certificada como ecológica.</span>
                     </label>
-                    <select
-                      name="tipoProduccion"
-                      required
-                      value={formData.tipoProduccion}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
-                    >
-                      <option value="conventional">Agricultura Tradicional</option>
-                      <option value="organic">Agricultura Ecológica</option>
-                      <option value="integrated">Agricultura Integrada</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Productos Principales*
-                    </label>
-                    <input
-                      type="text"
-                      name="productos"
-                      required
-                      value={formData.productos}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
-                      placeholder="Ej: Tomates, Aceite de Oliva, Miel..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Certificaciones
-                    </label>
-                    <input
-                      type="text"
-                      name="certificaciones"
-                      value={formData.certificaciones}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
-                      placeholder="Ej: Ecológico, D.O.P., IGP..."
-                    />
                   </div>
                 </div>
               </div>
 
               {/* Dirección */}
-              <div className="mt-4 sm:mt-6 space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Dirección</h3>
+              <div className="mt-6 space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900">Dirección</h3>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -300,7 +274,7 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
                       required
                       value={formData.direccion}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-900 bg-white shadow-sm"
                       placeholder="Calle, número..."
                     />
                   </div>
@@ -315,7 +289,7 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
                       required
                       value={formData.codigoPostal}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-900 bg-white shadow-sm"
                       placeholder="00000"
                     />
                   </div>
@@ -330,7 +304,7 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
                       required
                       value={formData.ciudad}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-900 bg-white shadow-sm"
                       placeholder="Tu ciudad"
                     />
                   </div>
@@ -345,11 +319,28 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
                       required
                       value={formData.provincia}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-900 bg-white shadow-sm"
                       placeholder="Tu provincia"
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Foto de Perfil */}
+              <div className="mt-6">
+                <ImageUpload
+                  label="Foto de Perfil (opcional)"
+                  currentImageUrl={formData.profile_image_path ? `${process.env.NEXT_PUBLIC_CDN_URL || ''}/${formData.profile_image_path}` : undefined}
+                  uploadUrl="/uploads/farmer-application"
+                  requiresAuth={false}
+                  responseKey="path"
+                  onImageUploaded={(value) => {
+                    if (typeof value === 'string') {
+                      setFormData(prev => ({ ...prev, profile_image_path: value }));
+                    }
+                  }}
+                />
+                <p className="text-xs text-gray-500 mt-2">Formatos permitidos: JPG, PNG, WEBP. Máx 25MB.</p>
               </div>
 
               {/* Descripción */}
@@ -362,13 +353,28 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
                   value={formData.descripcion}
                   onChange={handleChange}
                   rows={4}
-                  className="input-field"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-900 bg-white shadow-sm"
                   placeholder="Describe tu experiencia, métodos de producción, historia..."
                 />
               </div>
 
-              {/* Botones de acción */}
-              <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-4">
+              {/* Aviso de privacidad */}
+              <div className="mt-8">
+                <label className="flex items-start space-x-3 mb-4">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    checked={privacyAccepted}
+                    onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                    required
+                  />
+                  <span className="text-sm text-gray-700">
+                    He leído y acepto el <span className="font-medium">aviso de privacidad</span> y consiento el tratamiento de mis datos para gestionar mi solicitud.
+                  </span>
+                </label>
+
+                {/* Botones de acción */}
+                <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-4">
                 <button
                   type="button"
                   onClick={onClose}
@@ -397,6 +403,7 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
                     'Enviar Solicitud'
                   )}
                 </button>
+              </div>
               </div>
             </form>
           </div>

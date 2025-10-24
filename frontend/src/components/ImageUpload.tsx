@@ -5,11 +5,14 @@ import { authAPI } from '@/lib/authApi';
 
 interface ImageUploadProps {
   currentImageUrl?: string;
-  onImageUploaded: (url: string) => void;
+  onImageUploaded: (value: string) => void;
   label?: string;
+  uploadUrl?: string; // e.g. '/uploads/product-image' o '/uploads/farmer-application'
+  requiresAuth?: boolean; // por defecto true
+  responseKey?: 'publicUrl' | 'path'; // clave de respuesta para extraer el valor
 }
 
-export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 'Imagen del Producto' }: ImageUploadProps) {
+export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 'Imagen', uploadUrl = '/uploads/product-image', requiresAuth = true, responseKey = 'publicUrl' }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(currentImageUrl || null);
   const [error, setError] = useState<string | null>(null);
@@ -46,16 +49,15 @@ export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 
     try {
       const formData = new FormData();
       formData.append('image', file);
-
-      const uploadUrl = '/api/uploads/product-image';
-      console.log('🖼️ ImageUpload → Subiendo a URL:', uploadUrl);
-      const token = authAPI.getToken();
+      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      const target = uploadUrl.startsWith('http') ? uploadUrl : `${base}${uploadUrl}`;
+      const token = requiresAuth ? authAPI.getToken() : null;
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const response = await fetch(uploadUrl, {
+      const response = await fetch(target, {
         method: 'POST',
         body: formData,
-        credentials: 'include',
-        headers,
+        credentials: requiresAuth ? 'include' : 'same-origin',
+        headers: requiresAuth ? headers : undefined,
       });
 
       const data = await response.json();
@@ -64,8 +66,9 @@ export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 
         throw new Error(data.message || 'Error al subir la imagen');
       }
 
-      // Notificar al componente padre
-      onImageUploaded(data.publicUrl);
+      // Notificar al componente padre con la clave configurada
+      const value = data?.[responseKey];
+      onImageUploaded(value);
     } catch (err) {
       console.error('Error subiendo imagen:', err);
       setError(err instanceof Error ? err.message : 'Error al subir la imagen');
