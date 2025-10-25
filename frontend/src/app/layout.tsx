@@ -1,8 +1,6 @@
 import './globals.css';
-import Header from '@/components/Header';
 import CartSidebar from '@/components/CartSidebar';
-import { CartProvider } from '@/context/CartContext';
-import { AuthProvider } from '@/contexts/AuthContext';
+import ClientLayoutWrapper from '@/components/ClientLayoutWrapper';
 
 export const metadata = {
   title: 'Sabor a Tierra',
@@ -17,13 +15,9 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body>
-        <AuthProvider>
-          <CartProvider>
-            <Header />
-            <div className="pt-24">{children}</div>
-            <CartSidebar />
-          </CartProvider>
-        </AuthProvider>
+        <ClientLayoutWrapper>
+          <div className="pt-24">{children}</div>
+        </ClientLayoutWrapper>
       </body>
     </html>
   )

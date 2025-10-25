@@ -26,6 +26,7 @@ export interface CreateOrderData {
   tax_amount: number;
   total_amount: number;
   marketing_consent: boolean;
+  discountCode?: string;
 }
 
 export interface Order {
@@ -107,6 +108,26 @@ export class OrderService {
         orderData.marketing_consent
       );
 
+      // Aplicar descuento si corresponde
+      let discount_code_used: string | undefined;
+      let discount_amount = 0;
+      if (orderData.discountCode) {
+        const { DiscountService } = await import('./discountService');
+        const validation = await DiscountService.validateDiscountCode(orderData.discountCode);
+        if (!validation.isValid || !validation.percentage) {
+          throw new Error('Código de descuento inválido o expirado');
+        }
+        discount_code_used = orderData.discountCode;
+        discount_amount = Math.round((orderData.subtotal * validation.percentage) ) / 100; // porcentaje
+        // Recalcular totales
+        const newSubtotal = Math.max(0, orderData.subtotal - discount_amount);
+        orderData.subtotal = newSubtotal;
+        // Mantener shipping_cost y recomputar tax (21%) sobre subtotal+shipping
+        const taxBase = newSubtotal + orderData.shipping_cost;
+        orderData.tax_amount = taxBase * 0.21;
+        orderData.total_amount = taxBase + orderData.tax_amount;
+      }
+
       // 1. Crear el pedido principal
       const { data: order, error: orderError } = await supabaseAdmin
         .from('orders')
@@ -127,6 +148,8 @@ export class OrderService {
           shipping_cost: orderData.shipping_cost,
           tax_amount: orderData.tax_amount,
           total_amount: orderData.total_amount,
+          discount_code_used: discount_code_used,
+          discount_amount: discount_amount,
           status: 'pending',
           payment_status: orderData.payment_method === 'cash_on_delivery' ? 'pending' : 'paid',
           payment_method: orderData.payment_method,
@@ -191,7 +214,13 @@ export class OrderService {
       // 3. Crear entrada en timeline
       await this.addTimelineEntry(orderId, 'pending', 'Pedido recibido y en proceso de confirmación');
 
-      // 4. Actualizar stock de productos (simplificado)
+      // 4. Marcar código como usado si corresponde
+      if (discount_code_used) {
+        const { DiscountService } = await import('./discountService');
+        await DiscountService.markCodeAsUsed(discount_code_used, orderId);
+      }
+
+      // 5. Actualizar stock de productos (simplificado)
       for (const item of orderData.items) {
         await this.updateProductStock(item.product_id, item.quantity);
       }
