@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api';
+import { useIsEligibleForFirstPurchaseOffer } from '@/hooks/useEligibilityCheck';
 
 interface DiscountModalProps {
   isOpen: boolean;
@@ -15,21 +16,20 @@ export default function DiscountModal({ isOpen, onClose, onAutoOpen }: DiscountM
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  const eligible = useIsEligibleForFirstPurchaseOffer();
   useEffect(() => {
-    // Aparición automática una sola vez
+    // Aparición automática por sesión (10s)
+    if (!eligible) return;
     try {
-      const claimed = localStorage.getItem('discountClaimed') === 'true';
-      const dismissed = localStorage.getItem('discountBannerDismissed') === 'true';
-      const shown = localStorage.getItem('discountModalShown') === 'true';
-      if (claimed || dismissed || shown) return;
+      const shownThisSession = sessionStorage.getItem('discountModalShownThisSession') === 'true';
+      if (shownThisSession) return;
     } catch {}
-
     const t = setTimeout(() => {
-      try { localStorage.setItem('discountModalShown', 'true'); } catch {}
+      try { sessionStorage.setItem('discountModalShownThisSession', 'true'); } catch {}
       onAutoOpen();
     }, 10000);
     return () => clearTimeout(t);
-  }, [onAutoOpen]);
+  }, [eligible, onAutoOpen]);
 
   if (!isOpen) return null;
 

@@ -47,6 +47,13 @@ export default function OrderConfirmationPage() {
     }
   }, [orderId]);
 
+  // Marcar compra realizada al cargar correctamente
+  useEffect(() => {
+    if (!loading && order) {
+      try { localStorage.setItem('hasPurchased', 'true'); } catch {}
+    }
+  }, [loading, order]);
+
   // Limpiar carrito cuando el usuario llega a la página de confirmación
   useEffect(() => {
     // Solo limpiar una vez cuando haya un order cargado correctamente

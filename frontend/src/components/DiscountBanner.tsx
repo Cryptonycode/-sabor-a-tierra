@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useIsEligibleForFirstPurchaseOffer } from '@/hooks/useEligibilityCheck';
 
 interface DiscountBannerProps {
   onOpenModal: () => void;
@@ -9,18 +10,35 @@ interface DiscountBannerProps {
 export default function DiscountBanner({ onOpenModal }: DiscountBannerProps) {
   const [isVisible, setIsVisible] = useState(false);
 
+  const eligible = useIsEligibleForFirstPurchaseOffer();
   useEffect(() => {
-    try {
-      const modalShown = localStorage.getItem('discountModalShown') === 'true';
-      const claimed = localStorage.getItem('discountClaimed') === 'true';
-      const dismissed = localStorage.getItem('discountBannerDismissed') === 'true';
-      if (modalShown && !claimed && !dismissed) {
-        setIsVisible(true);
-      }
-    } catch (e) {
-      // Ignorar errores de localStorage
+    if (!eligible) {
+      setIsVisible(false);
+      return;
     }
-  }, []);
+    try {
+      const shownThisSession = sessionStorage.getItem('discountModalShownThisSession') === 'true';
+      if (!shownThisSession) {
+        setIsVisible(false);
+        return;
+      }
+      const snoozedStr = localStorage.getItem('bannerSnoozedUntil');
+      if (snoozedStr) {
+        const until = parseInt(snoozedStr, 10);
+        if (!Number.isNaN(until) && until > Date.now()) {
+          setIsVisible(false);
+          const timeout = setTimeout(() => {
+            // Re-evaluar al expirar el snooze
+            setIsVisible(true);
+          }, until - Date.now());
+          return () => clearTimeout(timeout);
+        }
+      }
+      setIsVisible(true);
+    } catch (e) {
+      setIsVisible(false);
+    }
+  }, [eligible]);
 
   if (!isVisible) return null;
 
@@ -30,7 +48,7 @@ export default function DiscountBanner({ onOpenModal }: DiscountBannerProps) {
         <button
           aria-label="Cerrar"
           onClick={() => {
-            try { localStorage.setItem('discountBannerDismissed', 'true'); } catch {}
+            try { localStorage.setItem('bannerSnoozedUntil', (Date.now() + 60000).toString()); } catch {}
             setIsVisible(false);
           }}
           className="absolute -top-2 -right-2 bg-gray-800 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-black"
