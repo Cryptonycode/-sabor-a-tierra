@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useCart } from '@/context/CartContext';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CheckoutData {
   customer_info: {
@@ -25,8 +26,12 @@ interface CheckoutData {
 export default function CheckoutPage() {
   const { cart, clearCart, isLoading } = useCart();
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [mode, setMode] = useState<'choose' | 'guest' | 'login'>('choose');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [magicSentTo, setMagicSentTo] = useState<string | null>(null);
   const [formData, setFormData] = useState<CheckoutData>({
     customer_info: {
       first_name: '',
@@ -198,49 +203,100 @@ export default function CheckoutPage() {
                 {currentStep === 1 && (
                   <div className="space-y-6">
                     <h2 className="text-xl font-semibold text-gray-900">👤 Información Personal</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Nombre*</label>
-                        <input
-                          type="text"
-                          required
-                          value={formData.customer_info.first_name}
-                          onChange={(e) => handleInputChange('customer_info', 'first_name', e.target.value)}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                        />
+
+                    {mode === 'choose' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="border rounded-lg p-6 bg-white shadow-sm">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Continuar como Invitado</h3>
+                          <p className="text-sm text-gray-600 mb-4">Rellena tus datos manualmente para completar el pedido.</p>
+                          <button onClick={() => setMode('guest')} className="w-full bg-primary text-white font-semibold py-2 px-4 rounded hover:bg-primary/90">Continuar como Invitado</button>
+                        </div>
+                        <div className="border rounded-lg p-6 bg-white shadow-sm">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">¿Ya eres cliente?</h3>
+                          <p className="text-sm text-gray-600 mb-4">Inicia sesión con enlace mágico para autocompletar tus datos.</p>
+                          <button onClick={() => setMode('login')} className="w-full bg-accent text-white font-semibold py-2 px-4 rounded hover:bg-accent/90">Iniciar sesión</button>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Apellidos*</label>
-                        <input
-                          type="text"
-                          required
-                          value={formData.customer_info.last_name}
-                          onChange={(e) => handleInputChange('customer_info', 'last_name', e.target.value)}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                        />
+                    )}
+
+                    {mode === 'login' && (
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold text-gray-900">Acceso con Enlace Mágico</h3>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Email</label>
+                          <input
+                            type="email"
+                            value={loginEmail}
+                            onChange={(e) => setLoginEmail(e.target.value)}
+                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                            placeholder="tu@email.com"
+                          />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={async () => {
+                              if (!loginEmail) return;
+                              setMagicSentTo(loginEmail);
+                            }}
+                            className="bg-accent text-white font-semibold py-2 px-4 rounded hover:bg-accent/90"
+                          >
+                            Enviar enlace de acceso
+                          </button>
+                          <button onClick={() => setMode('guest')} className="text-sm text-gray-600 hover:text-gray-900">Continuar como invitado</button>
+                        </div>
+                        {magicSentTo && (
+                          <div className="p-3 bg-green-50 border border-green-200 text-green-800 rounded">
+                            ✅ ¡Enviado! Revisa tu email ({magicSentTo}) y haz clic en el enlace para iniciar sesión y autocompletar tus datos.
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Email*</label>
-                        <input
-                          type="email"
-                          required
-                          value={formData.customer_info.email}
-                          onChange={(e) => handleInputChange('customer_info', 'email', e.target.value)}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                        />
+                    )}
+
+                    {mode === 'guest' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Nombre*</label>
+                          <input
+                            type="text"
+                            required
+                            value={formData.customer_info.first_name}
+                            onChange={(e) => handleInputChange('customer_info', 'first_name', e.target.value)}
+                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Apellidos*</label>
+                          <input
+                            type="text"
+                            required
+                            value={formData.customer_info.last_name}
+                            onChange={(e) => handleInputChange('customer_info', 'last_name', e.target.value)}
+                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Email*</label>
+                          <input
+                            type="email"
+                            required
+                            value={formData.customer_info.email}
+                            onChange={(e) => handleInputChange('customer_info', 'email', e.target.value)}
+                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Teléfono*</label>
+                          <input
+                            type="tel"
+                            required
+                            value={formData.customer_info.phone}
+                            onChange={(e) => handleInputChange('customer_info', 'phone', e.target.value)}
+                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                            placeholder="+34 600 123 456"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Teléfono*</label>
-                        <input
-                          type="tel"
-                          required
-                          value={formData.customer_info.phone}
-                          onChange={(e) => handleInputChange('customer_info', 'phone', e.target.value)}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                          placeholder="+34 600 123 456"
-                        />
-                      </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
