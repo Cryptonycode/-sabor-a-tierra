@@ -237,32 +237,47 @@ export class OrderService {
   // Obtener pedido por ID
   static async getOrderById(orderId: string): Promise<Order | null> {
     try {
-      const { data: order, error: orderError } = await supabaseAdmin
+      // Intentar obtener la orden junto con sus items en una sola consulta
+      const { data: orderWithItems, error: orderWithItemsError } = await supabaseAdmin
         .from('orders')
-        .select('*')
+        .select('*, order_items(*)')
         .eq('id', orderId)
         .single();
 
-      if (orderError || !order) {
-        return null;
+      let order = orderWithItems as any;
+      if (orderWithItemsError) {
+        // Fallback a consulta simple si la relación no está configurada
+        const { data: orderOnly, error: orderError } = await supabaseAdmin
+          .from('orders')
+          .select('*')
+          .eq('id', orderId)
+          .single();
+        if (orderError || !orderOnly) {
+          return null;
+        }
+        order = orderOnly;
       }
 
-      // Obtener items del pedido
-      const { data: items, error: itemsError } = await supabaseAdmin
-        .from('order_items')
-        .select('*')
-        .eq('order_id', orderId)
-        .order('created_at');
+      // Obtener items del pedido si no vinieron por la relación
+      let items = (order as any)?.order_items as any[] | undefined;
+      if (!Array.isArray(items)) {
+        const { data: fetchedItems } = await supabaseAdmin
+          .from('order_items')
+          .select('*')
+          .eq('order_id', orderId)
+          .order('created_at');
+        items = fetchedItems || [];
+      }
 
       // Obtener timeline del pedido
-      const { data: timeline, error: timelineError } = await supabaseAdmin
+      const { data: timeline } = await supabaseAdmin
         .from('order_timeline')
         .select('*')
         .eq('order_id', orderId)
         .order('created_at');
 
       return {
-        ...order,
+        ...(order as any),
         items: items || [],
         timeline: timeline || []
       };
