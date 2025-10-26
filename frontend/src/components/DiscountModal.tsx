@@ -7,29 +7,14 @@ import { useIsEligibleForFirstPurchaseOffer } from '@/hooks/useEligibilityCheck'
 interface DiscountModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAutoOpen: () => void;
+  onSubmitSuccess: () => void;
 }
 
-export default function DiscountModal({ isOpen, onClose, onAutoOpen }: DiscountModalProps) {
+export default function DiscountModal({ isOpen, onClose, onSubmitSuccess }: DiscountModalProps) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-
-  const eligible = useIsEligibleForFirstPurchaseOffer();
-  useEffect(() => {
-    // Aparición automática por sesión (10s)
-    if (!eligible) return;
-    try {
-      const shownThisSession = sessionStorage.getItem('discountModalShownThisSession') === 'true';
-      if (shownThisSession) return;
-    } catch {}
-    const t = setTimeout(() => {
-      try { sessionStorage.setItem('discountModalShownThisSession', 'true'); } catch {}
-      onAutoOpen();
-    }, 10000);
-    return () => clearTimeout(t);
-  }, [eligible, onAutoOpen]);
 
   if (!isOpen) return null;
 
@@ -45,9 +30,8 @@ export default function DiscountModal({ isOpen, onClose, onAutoOpen }: DiscountM
     try {
       const res: any = await apiClient.post('/discounts/generate-first-purchase', { email });
       if (res?.success) {
-        try { localStorage.setItem('discountClaimed', 'true'); } catch {}
         setSuccessMsg('¡Código enviado a tu email!');
-        onClose();
+        onSubmitSuccess();
       } else {
         setError(res?.message || 'No se pudo generar el código.');
       }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { CartProvider } from '@/context/CartContext';
 import DiscountModal from '@/components/DiscountModal';
@@ -9,7 +9,31 @@ import Header from '@/components/Header';
 import CartSidebar from '@/components/CartSidebar';
 
 export default function ClientLayoutWrapper({ children }: { children: React.ReactNode }) {
-  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBannerVisible, setIsBannerVisible] = useState(false);
+
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setIsModalOpen(true);
+      setIsBannerVisible(false);
+    }, 10000);
+    return () => clearTimeout(timerId);
+  }, []);
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setIsBannerVisible(true);
+  };
+
+  const handleModalSubmitSuccess = () => {
+    setIsModalOpen(false);
+    setIsBannerVisible(false);
+  };
+
+  const handleBannerClick = () => {
+    setIsBannerVisible(false);
+    setIsModalOpen(true);
+  };
 
   return (
     <AuthProvider>
@@ -17,11 +41,14 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
         <Header />
         {children}
         <DiscountModal
-          isOpen={isDiscountModalOpen}
-          onClose={() => setIsDiscountModalOpen(false)}
-          onAutoOpen={() => setIsDiscountModalOpen(true)}
+          isOpen={isModalOpen}
+          onClose={handleModalClose}
+          onSubmitSuccess={handleModalSubmitSuccess}
         />
-        <DiscountBanner onOpenModal={() => setIsDiscountModalOpen(true)} />
+        <DiscountBanner
+          isVisible={isBannerVisible}
+          onOpenModal={handleBannerClick}
+        />
         <CartSidebar />
       </CartProvider>
     </AuthProvider>
