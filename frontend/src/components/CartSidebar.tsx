@@ -2,10 +2,15 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
+import { useState } from 'react';
+import { apiClient } from '@/lib/api';
 import CartItem from './CartItem';
 
 export default function CartSidebar() {
   const { cart, closeCart, clearCart } = useCart();
+  const [discountCodeInput, setDiscountCodeInput] = useState('');
+  const [discountMessage, setDiscountMessage] = useState('');
+  const [applying, setApplying] = useState(false);
 
   // Cerrar sidebar con tecla Escape
   useEffect(() => {
@@ -30,6 +35,30 @@ export default function CartSidebar() {
   const handleCheckout = () => {
     closeCart();
     window.location.href = '/checkout';
+  };
+
+  const handleApplyDiscount = async () => {
+    try {
+      setApplying(true);
+      setDiscountMessage('');
+      const code = discountCodeInput.trim();
+      if (!code) return;
+      const res: any = await apiClient.get(`/discounts/validate/${encodeURIComponent(code)}`);
+      if (res?.isValid && typeof res.percentage === 'number') {
+        // Guardar en sessionStorage para que checkout lo recupere
+        try {
+          sessionStorage.setItem('appliedDiscount', JSON.stringify({ code, percentage: res.percentage }));
+        } catch {}
+        setDiscountMessage(`¡Descuento del ${res.percentage}% aplicado! Se verá reflejado en el checkout.`);
+      } else {
+        setDiscountMessage(res?.error || 'Código inválido o expirado');
+        try { sessionStorage.removeItem('appliedDiscount'); } catch {}
+      }
+    } catch (e) {
+      setDiscountMessage('Error al validar el código. Inténtalo de nuevo.');
+    } finally {
+      setApplying(false);
+    }
   };
 
   if (!cart.isOpen) return null;
@@ -101,6 +130,30 @@ export default function CartSidebar() {
         {/* Footer del sidebar - Resumen y acciones */}
         {cart.items.length > 0 && (
           <div className="border-t border-gray-200 p-3 sm:p-4 space-y-4">
+            {/* Código de descuento */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Código de descuento</label>
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={discountCodeInput}
+                  onChange={(e) => setDiscountCodeInput(e.target.value)}
+                  className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                  placeholder="Introduce tu código"
+                />
+                <button
+                  onClick={handleApplyDiscount}
+                  disabled={applying}
+                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {applying ? 'Aplicando...' : 'Aplicar'}
+                </button>
+              </div>
+              {discountMessage && (
+                <div className={`text-xs ${discountMessage.includes('aplicado') ? 'text-green-600' : 'text-red-600'}`}>{discountMessage}</div>
+              )}
+            </div>
+
             {/* Total */}
             <div className="flex justify-between items-center">
               <span className="text-lg font-semibold text-gray-800">Total:</span>

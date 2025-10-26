@@ -29,6 +29,9 @@ export default function CheckoutPage() {
   const { isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [discountCodeInput, setDiscountCodeInput] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; percentage: number } | null>(null);
+  const [discountMessage, setDiscountMessage] = useState('');
   const [mode, setMode] = useState<'choose' | 'guest' | 'login'>('choose');
   const [loginEmail, setLoginEmail] = useState('');
   const [magicSentTo, setMagicSentTo] = useState<string | null>(null);
@@ -56,6 +59,17 @@ export default function CheckoutPage() {
     if (cart.items.length === 0) {
       router.push('/productos');
     }
+    // Recuperar descuento aplicado desde el sidebar (si existe)
+    try {
+      const stored = sessionStorage.getItem('appliedDiscount');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.code === 'string' && typeof parsed.percentage === 'number') {
+          setAppliedDiscount(parsed);
+          setDiscountMessage(`¡Descuento del ${parsed.percentage}% aplicado!`);
+        }
+      }
+    } catch {}
   }, [isLoading, cart.items.length, router]);
 
   const handleInputChange = (section: keyof CheckoutData, field: string, value: string | boolean) => {
@@ -103,13 +117,39 @@ export default function CheckoutPage() {
     return cart.totalPrice > 50 ? 0 : 4.99;
   };
 
+  const getDiscountAmount = () => {
+    if (!appliedDiscount) return 0;
+    const amount = cart.totalPrice * (appliedDiscount.percentage / 100);
+    return Math.min(amount, cart.totalPrice);
+  };
+
   const calculateTax = () => {
     // IVA del 21%
-    return (cart.totalPrice + calculateShipping()) * 0.21;
+    const taxableBase = Math.max(0, (cart.totalPrice - getDiscountAmount()) + calculateShipping());
+    return taxableBase * 0.21;
   };
 
   const calculateTotal = () => {
-    return cart.totalPrice + calculateShipping() + calculateTax();
+    return Math.max(0, cart.totalPrice - getDiscountAmount()) + calculateShipping() + calculateTax();
+  };
+
+  const handleApplyDiscount = async () => {
+    try {
+      setDiscountMessage('');
+      const code = discountCodeInput.trim();
+      if (!code) return;
+      const res: any = await apiClient.get(`/discounts/validate/${encodeURIComponent(code)}`);
+      if (res?.isValid && typeof res.percentage === 'number') {
+        setAppliedDiscount({ code, percentage: res.percentage });
+        setDiscountMessage(`¡Descuento del ${res.percentage}% aplicado!`);
+      } else {
+        setAppliedDiscount(null);
+        setDiscountMessage(res?.error || 'Código inválido o expirado');
+      }
+    } catch (e) {
+      setAppliedDiscount(null);
+      setDiscountMessage('Error al validar el código. Inténtalo de nuevo.');
+    }
   };
 
   const handleSubmitOrder = async () => {
@@ -129,7 +169,8 @@ export default function CheckoutPage() {
         shipping_cost: calculateShipping(),
         tax_amount: calculateTax(),
         total_amount: calculateTotal(),
-        marketing_consent: formData.marketing_consent
+        marketing_consent: formData.marketing_consent,
+        discountCode: appliedDiscount?.code
       };
 
       const response: any = await apiClient.post('/orders', orderData);
@@ -529,10 +570,40 @@ export default function CheckoutPage() {
 
                 {/* Totals */}
                 <div className="border-t pt-4 space-y-2">
+                  {/* Código de descuento */}
+                  <div className="flex items-end space-x-2 mb-2">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700">Código de descuento</label>
+                      <input
+                        type="text"
+                        value={discountCodeInput}
+                        onChange={(e) => setDiscountCodeInput(e.target.value)}
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                        placeholder="Introduce tu código"
+                      />
+                    </div>
+                    <button
+                      onClick={handleApplyDiscount}
+                      className="h-10 px-4 bg-primary text-white rounded-md hover:bg-primary/90 mt-6"
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                  {discountMessage && (
+                    <div className="text-sm mb-2 {discountMessage.includes('aplicado') ? 'text-green-600' : 'text-red-600'}">
+                      {discountMessage}
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span>Subtotal:</span>
                     <span>€{cart.totalPrice.toFixed(2)}</span>
                   </div>
+                  {appliedDiscount && (
+                    <div className="flex justify-between text-sm text-green-700">
+                      <span>Descuento aplicado ({appliedDiscount.percentage}%):</span>
+                      <span>-€{(cart.totalPrice * (appliedDiscount.percentage / 100)).toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span>Envío:</span>
                     <span>{calculateShipping() === 0 ? 'Gratis' : `€${calculateShipping().toFixed(2)}`}</span>
