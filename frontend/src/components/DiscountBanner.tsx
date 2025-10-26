@@ -9,36 +9,50 @@ interface DiscountBannerProps {
 
 export default function DiscountBanner({ onOpenModal }: DiscountBannerProps) {
   const [isVisible, setIsVisible] = useState(false);
+  const [snoozeExpired, setSnoozeExpired] = useState(Date.now());
 
   const eligible = useIsEligibleForFirstPurchaseOffer();
   useEffect(() => {
-    if (!eligible) {
-      setIsVisible(false);
-      return;
-    }
-    try {
-      const shownThisSession = sessionStorage.getItem('discountModalShownThisSession') === 'true';
-      if (!shownThisSession) {
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    const checkVisibility = () => {
+      if (!eligible) {
         setIsVisible(false);
         return;
       }
-      const snoozedStr = localStorage.getItem('bannerSnoozedUntil');
-      if (snoozedStr) {
-        const until = parseInt(snoozedStr, 10);
-        if (!Number.isNaN(until) && until > Date.now()) {
+      try {
+        const shownThisSession = sessionStorage.getItem('discountModalShownThisSession') === 'true';
+        if (!shownThisSession) {
           setIsVisible(false);
-          const timeout = setTimeout(() => {
-            // Re-evaluar al expirar el snooze
-            setIsVisible(true);
-          }, until - Date.now());
-          return () => clearTimeout(timeout);
+          return;
         }
+
+        const snoozedStr = localStorage.getItem('bannerSnoozedUntil');
+        if (snoozedStr) {
+          const until = parseInt(snoozedStr, 10);
+          if (!Number.isNaN(until) && until > Date.now()) {
+            // Aún en snooze; programar re-evaluación
+            setIsVisible(false);
+            timeoutId = setTimeout(() => {
+              setSnoozeExpired(Date.now());
+            }, until - Date.now());
+            return;
+          }
+        }
+        // Elegible, mostrado en sesión y no snoozed
+        setIsVisible(true);
+      } catch (e) {
+        console.error('Error checking banner visibility:', e);
+        setIsVisible(false);
       }
-      setIsVisible(true);
-    } catch (e) {
-      setIsVisible(false);
-    }
-  }, [eligible]);
+    };
+
+    checkVisibility();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [eligible, snoozeExpired]);
 
   if (!isVisible) return null;
 
