@@ -416,14 +416,13 @@ export default function CheckoutPage() {
                       ].map((method) => (
                         <div
                           key={method.value}
-                          className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                          className={`border rounded-lg p-4 transition-colors ${
                             formData.payment_method === method.value
                               ? 'border-primary bg-primary/5'
                               : 'border-gray-300 hover:border-gray-400'
                           }`}
-                          onClick={() => handleInputChange('payment_method', '', method.value)}
                         >
-                          <div className="flex items-center">
+                          <label className="flex items-center cursor-pointer">
                             <input
                               type="radio"
                               name="payment_method"
@@ -441,7 +440,7 @@ export default function CheckoutPage() {
                                 </div>
                               </div>
                             </div>
-                          </div>
+                          </label>
                         </div>
                       ))}
                     </div>
