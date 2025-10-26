@@ -72,17 +72,28 @@ export default function CheckoutPage() {
     } catch {}
   }, [isLoading, cart.items.length, router]);
 
-  const handleInputChange = (section: keyof CheckoutData, field: string, value: string | boolean) => {
-    setFormData(prev => {
-      const sectionData: any = prev[section] || {};
-      return {
-        ...prev,
-        [section]: {
-          ...sectionData,
-          [field]: value
-        }
-      } as CheckoutData;
-    });
+  const handleInputChange = (section: keyof CheckoutData | 'payment_method', field: string, value: string | boolean) => {
+    console.log(`handleInputChange llamado con: section=${section}, field=${field}, value=${value}`);
+    if (section === 'payment_method') {
+      setFormData(prev => {
+        const newState = { ...prev, payment_method: value as CheckoutData['payment_method'] };
+        console.log('Nuevo estado (payment_method):', newState);
+        return newState;
+      });
+    } else {
+      setFormData(prev => {
+        const sectionData: any = prev[section as keyof Omit<CheckoutData, 'payment_method'>] || {};
+        const newState = {
+          ...prev,
+          [section]: {
+            ...sectionData,
+            [field]: value
+          }
+        } as CheckoutData;
+        console.log(`Nuevo estado (${section}):`, newState);
+        return newState;
+      });
+    }
   };
 
   const validateStep = (step: number): boolean => {
