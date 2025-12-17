@@ -3,8 +3,11 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
+import { useCart } from '@/context/CartContext';
+import { Product } from '@/types/cart';
 
 export default function ProductDetailClient({ product }: { product: any }) {
+  const { addToCart, openCart } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -50,6 +53,31 @@ export default function ProductDetailClient({ product }: { product: any }) {
     const parsed = parseFloat(String(rawWeight).replace(/[^0-9.]/g, ''));
     return isNaN(parsed) ? NaN : parsed;
   })();
+
+  const handleAddToCart = async () => {
+    setIsAdding(true);
+
+    // Si tenemos variantes reales del backend
+    const currentVariantData = Array.isArray((product as any).variants) && (product as any).variants[selectedIndex];
+
+    const productToAdd: Product = {
+      id: currentVariantData ? `${product.id}-${currentVariantData.id}` : product.id,
+      productId: String(product.id),
+      variantId: currentVariantData ? String(currentVariantData.id) : undefined,
+      name: `${product.name} - ${current.name}`,
+      price: finalPrice,
+      imageUrl: product.main_image_url,
+      unit: product.unit || 'kg',
+      category: product.category,
+      weight: weightNumber || 0, // Peso en kg de la variante
+    } as any;
+
+    addToCart(productToAdd, quantity);
+
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setIsAdding(false);
+    openCart();
+  };
 
   return (
     <>
@@ -133,8 +161,12 @@ export default function ProductDetailClient({ product }: { product: any }) {
                   </div>
                 </div>
 
-                <button disabled={isAdding} className={`w-full py-4 px-6 rounded-lg font-semibold text-white transition-all ${isAdding ? 'bg-green-600 cursor-not-allowed' : 'bg-accent hover:bg-accent/90'}`}>
-                  🛒 Añadir a la cesta - €{(finalPrice * quantity).toFixed(2)}
+                <button 
+                  onClick={handleAddToCart}
+                  disabled={isAdding} 
+                  className={`w-full py-4 px-6 rounded-lg font-semibold text-white transition-all ${isAdding ? 'bg-green-600 cursor-not-allowed' : 'bg-accent hover:bg-accent/90'}`}
+                >
+                  {isAdding ? '✅ ¡Añadido!' : `🛒 Añadir a la cesta - €${(finalPrice * quantity).toFixed(2)}`}
                 </button>
               </div>
             </div>

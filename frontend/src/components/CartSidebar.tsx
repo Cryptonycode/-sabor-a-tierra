@@ -190,9 +190,14 @@ export default function CartSidebar() {
               </div>
             </div>
 
-            {/* Envío gratis */}
-            <div className="text-center text-sm text-gray-600 pt-2 border-t">
-              🚚 Envío gratis en pedidos superiores a 50€
+            {/* Info de peso y envío */}
+            <div className="text-center text-sm text-gray-600 pt-2 border-t space-y-1">
+              <div>📦 Peso total: {cart.totalWeight?.toFixed(2) || '0.00'} kg</div>
+              {cart.totalWeight > 20 && (
+                <div className="text-red-600 font-medium">
+                  ⚠️ Límite de peso excedido (máx 20kg)
+                </div>
+              )}
             </div>
           </div>
         )}

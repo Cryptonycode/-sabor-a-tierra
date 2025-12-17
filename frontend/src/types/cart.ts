@@ -7,17 +7,20 @@ export interface Product {
   imageUrl: string;
   unit: string;
   category?: string;
+  weight?: number; // Peso en kg por unidad/variante
 }
 
 export interface CartItem extends Product {
   quantity: number;
   subtotal: number;
+  weight?: number; // Peso en kg por unidad/variante
 }
 
 export interface CartState {
   items: CartItem[];
   totalItems: number;
   totalPrice: number;
+  totalWeight: number; // Peso total del carrito en kg
   isOpen: boolean;
   isLoading: boolean;
 }

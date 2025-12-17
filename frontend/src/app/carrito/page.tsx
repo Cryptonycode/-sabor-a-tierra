@@ -11,9 +11,8 @@ export default function CartPage() {
 
   const handleCheckout = () => {
     console.log('Checkout iniciado desde página:', cart);
-    // Aquí se integrará la pasarela de pago en el futuro
-    // Por ahora, redirigir a página de gracias
-    router.push('/gracias');
+    // Redirigir a la página de checkout
+    router.push('/checkout');
   };
 
   const handleClearCart = () => {
@@ -22,10 +21,27 @@ export default function CartPage() {
     }
   };
 
-  // Calcular descuentos y envío
+  // Calcular envío basado en peso
   const subtotal = cart.totalPrice;
-  const shippingCost = subtotal >= 50 ? 0 : 5.99;
-  const discount = subtotal >= 100 ? subtotal * 0.05 : 0; // 5% descuento si > 100€
+  const totalWeight = cart.totalWeight || 0;
+  
+  // Calcular envío por peso
+  let shippingCost = 0;
+  if (totalWeight > 0) {
+    if (totalWeight <= 4) {
+      shippingCost = 3.90;
+    } else if (totalWeight <= 10) {
+      shippingCost = 4.45;
+    } else if (totalWeight <= 15) {
+      shippingCost = 5.90;
+    } else if (totalWeight <= 20) {
+      shippingCost = 10.95;
+    } else {
+      shippingCost = -1; // Indicador de peso excedido
+    }
+  }
+  
+  const discount = 0; // Los descuentos se aplican con códigos en checkout
   const total = subtotal + shippingCost - discount;
 
   return (
@@ -135,26 +151,33 @@ export default function CartPage() {
                     </div>
                     
                     <div className="flex justify-between">
+                      <span className="text-gray-600">Peso total:</span>
+                      <span className="font-medium">{totalWeight.toFixed(2)} kg</span>
+                    </div>
+                    
+                    <div className="flex justify-between">
                       <span className="text-gray-600">Envío:</span>
-                      <span className={`font-medium ${shippingCost === 0 ? 'text-green-600' : ''}`}>
-                        {shippingCost === 0 ? 'Gratis' : `${shippingCost.toFixed(2)}€`}
+                      <span className={`font-medium ${shippingCost < 0 ? 'text-red-600' : ''}`}>
+                        {shippingCost < 0 ? 'Peso excedido' : `${shippingCost.toFixed(2)}€`}
                       </span>
                     </div>
                     
-                    {discount > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Descuento (5%):</span>
-                        <span className="font-medium text-green-600">
-                          -{discount.toFixed(2)}€
-                        </span>
+                    {shippingCost < 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700">
+                        ⚠️ El peso total excede 20kg. Reduce la cantidad de productos.
                       </div>
                     )}
+                    
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>IVA (21%):</span>
+                      <span>Incluido</span>
+                    </div>
                     
                     <div className="border-t pt-4">
                       <div className="flex justify-between items-center">
                         <span className="text-lg font-bold text-gray-800">Total:</span>
                         <span className="text-xl font-bold text-accent">
-                          {total.toFixed(2)}€
+                          {shippingCost < 0 ? '---' : `${total.toFixed(2)}€`}
                         </span>
                       </div>
                     </div>
@@ -163,9 +186,10 @@ export default function CartPage() {
                   {/* Botón de checkout */}
                   <button
                     onClick={handleCheckout}
-                    className="w-full btn-primary py-3 text-base sm:text-lg font-semibold mb-4"
+                    disabled={shippingCost < 0}
+                    className={`w-full btn-primary py-3 text-base sm:text-lg font-semibold mb-4 ${shippingCost < 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    Finalizar Compra
+                    {shippingCost < 0 ? 'Reduce el peso del pedido' : 'Finalizar Compra'}
                   </button>
 
                   {/* Información adicional */}
@@ -174,14 +198,14 @@ export default function CartPage() {
                       <svg className="w-4 h-4 mt-0.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      <span>Envío gratis en pedidos superiores a 50€</span>
+                      <span>Envío calculado por peso (0-4kg: 3,90€)</span>
                     </div>
                     
                     <div className="flex items-start space-x-2">
                       <svg className="w-4 h-4 mt-0.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      <span>Descuento del 5% en pedidos superiores a 100€</span>
+                      <span>Límite máximo: 20kg por pedido</span>
                     </div>
                     
                     <div className="flex items-start space-x-2">

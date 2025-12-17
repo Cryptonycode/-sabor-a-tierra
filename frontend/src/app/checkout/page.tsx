@@ -124,8 +124,23 @@ export default function CheckoutPage() {
   };
 
   const calculateShipping = () => {
-    // Lógica simple de envío
-    return cart.totalPrice > 50 ? 0 : 4.99;
+    // Calcular envío basado en peso total
+    const totalWeight = cart.totalWeight || 0;
+    
+    if (totalWeight <= 0) return 0;
+    
+    if (totalWeight <= 4) {
+      return 3.90;
+    } else if (totalWeight <= 10) {
+      return 4.45;
+    } else if (totalWeight <= 15) {
+      return 5.90;
+    } else if (totalWeight <= 20) {
+      return 10.95;
+    } else {
+      // Excede el límite de 20kg
+      return -1;
+    }
   };
 
   const getDiscountAmount = () => {
@@ -135,13 +150,14 @@ export default function CheckoutPage() {
   };
 
   const calculateTax = () => {
-    // IVA del 21%
-    const taxableBase = Math.max(0, (cart.totalPrice - getDiscountAmount()) + calculateShipping());
-    return taxableBase * 0.21;
+    // Los precios ya incluyen IVA del 21%
+    // Este método ahora solo retorna 0 porque no sumamos IVA adicional
+    return 0;
   };
 
   const calculateTotal = () => {
-    return Math.max(0, cart.totalPrice - getDiscountAmount()) + calculateShipping() + calculateTax();
+    // Total = Subtotal - Descuento + Envío (sin sumar IVA porque ya está incluido)
+    return Math.max(0, cart.totalPrice - getDiscountAmount()) + calculateShipping();
   };
 
   const handleApplyDiscount = async () => {
@@ -167,25 +183,54 @@ export default function CheckoutPage() {
     try {
       setLoading(true);
 
+      // Validar que el peso no exceda el límite
+      const totalWeight = cart.totalWeight || 0;
+      if (totalWeight > 20) {
+        alert('El peso total del pedido excede el límite de 20kg. Por favor, reduce la cantidad de productos.');
+        setLoading(false);
+        return;
+      }
+
+      const shippingCost = calculateShipping();
+      if (shippingCost < 0) {
+        alert('Error al calcular el envío. El peso del pedido puede ser incorrecto.');
+        setLoading(false);
+        return;
+      }
+
       const orderData = {
         items: cart.items.map(item => ({
           product_id: item.id,
           quantity: item.quantity,
-          unit_price: item.price
+          unit_price: item.price,
+          weight: item.weight || 0
         })),
         customer_info: formData.customer_info,
         delivery_address: formData.delivery_address,
         payment_method: formData.payment_method,
         subtotal: cart.totalPrice,
-        shipping_cost: calculateShipping(),
-        tax_amount: calculateTax(),
+        shipping_cost: shippingCost,
+        tax_amount: 0, // IVA incluido en los precios
         total_amount: calculateTotal(),
+        total_weight: totalWeight,
         marketing_consent: formData.marketing_consent,
         discountCode: appliedDiscount?.code
       };
 
       const response: any = await apiClient.post('/orders', orderData);
-      const orderId: string = response.id;
+      
+      // Extraer el ID de la respuesta de forma robusta
+      const orderId: string | undefined = response.id || response.order?.id;
+      
+      // Log para debugging
+      console.log('Respuesta del pedido:', response);
+      
+      // Verificar que tenemos un ID válido antes de redirigir
+      if (!orderId) {
+        console.error('Error: No se recibió un ID válido del servidor', response);
+        alert('El pedido se creó pero hubo un problema al obtener su ID. Por favor, contacta con soporte.');
+        return;
+      }
 
       // Redirigir a página de confirmación (la limpieza del carrito se hará allí)
       router.push(`/order-confirmation/${orderId}`);
@@ -422,8 +467,7 @@ export default function CheckoutPage() {
                       {[
                         { value: 'card', label: 'Tarjeta de Crédito/Débito', icon: '💳', description: 'Visa, Mastercard, American Express' },
                         { value: 'paypal', label: 'PayPal', icon: '🔵', description: 'Paga de forma segura con PayPal' },
-                        { value: 'transfer', label: 'Transferencia Bancaria', icon: '🏦', description: 'Transferencia directa a nuestra cuenta' },
-                        { value: 'cash_on_delivery', label: 'Pago Contra Reembolso', icon: '💰', description: 'Paga al recibir tu pedido (+2€)' }
+                        { value: 'transfer', label: 'Transferencia Bancaria', icon: '🏦', description: 'Transferencia directa a nuestra cuenta' }
                       ].map((method) => (
                         <div
                           key={method.value}
@@ -618,19 +662,13 @@ export default function CheckoutPage() {
                     <span>Envío:</span>
                     <span>{calculateShipping() === 0 ? 'Gratis' : `€${calculateShipping().toFixed(2)}`}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm text-gray-600">
                     <span>IVA (21%):</span>
-                    <span>€{calculateTax().toFixed(2)}</span>
+                    <span>Incluido</span>
                   </div>
-                  {formData.payment_method === 'cash_on_delivery' && (
-                    <div className="flex justify-between text-sm">
-                      <span>Gastos contrareembolso:</span>
-                      <span>€2.00</span>
-                    </div>
-                  )}
                   <div className="flex justify-between text-lg font-semibold border-t pt-2">
                     <span>Total:</span>
-                    <span>€{(calculateTotal() + (formData.payment_method === 'cash_on_delivery' ? 2 : 0)).toFixed(2)}</span>
+                    <span>€{calculateTotal().toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -639,9 +677,14 @@ export default function CheckoutPage() {
                   <div className="text-sm text-green-800">
                     <div className="font-medium">🚚 Entrega estimada</div>
                     <div>2-3 días laborables</div>
-                    {cart.totalPrice > 50 ? (
-                      <div className="text-xs mt-1">✅ Envío gratuito (pedido &gt; €50)</div>
-                    ) : null}
+                    <div className="text-xs mt-1">
+                      📦 Peso total: {cart.totalWeight?.toFixed(2) || '0.00'} kg
+                    </div>
+                    {cart.totalWeight > 20 && (
+                      <div className="text-xs mt-1 text-red-600">
+                        ⚠️ El peso excede el límite de 20kg
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
