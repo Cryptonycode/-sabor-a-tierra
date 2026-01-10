@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import ProductCard from '@/components/ProductCard';
 import Footer from '@/components/Footer';
 import { useProducts } from '@/hooks/useProducts';
@@ -22,6 +22,11 @@ export default function ProductsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { products: allProducts, loading, error } = useProducts();
+
+  // Scroll al inicio al montar el componente
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const filteredProducts = useMemo(() => {
     if (!allProducts) return [];
@@ -87,23 +92,22 @@ export default function ProductsPage() {
   return (
     <>
       <main className="min-h-screen bg-gray-50">
-        {/* Header Section */}
-        <section className="bg-primary text-white py-16">
+        {/* Header Section - Compactado para mejor "above the fold" */}
+        <section className="bg-primary text-white py-8">
           <div className="container mx-auto px-4">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+            <h1 className="text-3xl md:text-4xl font-bold mb-2">
               Nuestros Productos
             </h1>
-            <p className="text-xl max-w-2xl">
-              Descubre nuestra amplia selección de productos frescos y de temporada, 
-              directamente del campo a tu mesa.
+            <p className="text-base md:text-lg max-w-2xl">
+              Productos frescos del campo a tu mesa
             </p>
           </div>
         </section>
 
-        {/* Filters Section */}
-        <section className="bg-white shadow-sm py-6">
+        {/* Filters Section - Compactado */}
+        <section className="bg-white shadow-sm py-4">
           <div className="container mx-auto px-4">
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Search */}
               <div className="w-full">
                 <input
@@ -150,8 +154,8 @@ export default function ProductsPage() {
           </div>
         </section>
 
-        {/* Products Grid */}
-        <section className="py-12">
+        {/* Products Grid - Reducido padding superior */}
+        <section className="py-6">
           <div className="container mx-auto px-4">
             {filteredProducts.length === 0 ? (
               <div className="text-center py-12">

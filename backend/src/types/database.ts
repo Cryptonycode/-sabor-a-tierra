@@ -79,50 +79,24 @@ export interface Product {
   id: string;
   name: string;
   description: string;
-  short_description?: string;
-  price: number;
-  price_per_kg?: number;
-  price_per_box?: number;
+  price: number; // Precio base opcional/informativo "Desde X€"
   farmer_id: string;
   category: string;
-  subcategory?: string;
-  tags: string[];
-  unit: 'kg' | 'caja' | 'litro' | 'unidad';
-  seasonality?: string;
-  nutritional_info?: string;
-  storage_instructions?: string;
-  features: string[];
-  is_available: boolean;
-  stock_quantity: number;
-  min_order_quantity: number;
-  max_order_quantity?: number;
+  unit: string;
   main_image_url: string;
-  gallery_images: string[];
-  slug?: string;
-  meta_title?: string;
-  meta_description?: string;
-  weight_per_unit?: number;
-  requires_cold_shipping: boolean;
-  status: 'draft' | 'published' | 'archived';
-  featured: boolean;
-  created_by?: string;
   created_at: string;
   updated_at: string;
 }
 
 // 4.1 VARIANTES DE PRODUCTOS
+// Las variantes son la FUENTE DE VERDAD para precio y peso
 export interface ProductVariant {
   id: string;
   product_id: string;
   name: string;
-  description?: string;
-  price: number;
-  stock_quantity: number;
-  sku?: string;
-  weight?: number;
-  unit?: string;
-  pieces?: number;
-  is_available: boolean;
+  price: number; // OBLIGATORIO - Precio real de venta
+  weight: number; // OBLIGATORIO - Peso en kg para envío
+  unit: string; // OBLIGATORIO - Unidad de medida
   created_at: string;
   updated_at: string;
 }
@@ -259,30 +233,15 @@ export interface CreateCustomerRequest {
   marketing_emails?: boolean;
 }
 
-// Crear producto
+// Crear producto - SOLO campos esenciales
 export interface CreateProductRequest {
   name: string;
   description: string;
-  short_description?: string;
   price: number;
-  price_per_kg?: number;
-  price_per_box?: number;
   farmer_id: string;
   category: string;
-  subcategory?: string;
-  tags?: string[];
   unit: string;
-  seasonality?: string;
-  nutritional_info?: string;
-  storage_instructions?: string;
-  features?: string[];
-  stock_quantity?: number;
-  min_order_quantity?: number;
-  max_order_quantity?: number;
   main_image_url: string;
-  gallery_images?: string[];
-  weight_per_unit?: number;
-  requires_cold_shipping?: boolean;
 }
 
 // Crear agricultor

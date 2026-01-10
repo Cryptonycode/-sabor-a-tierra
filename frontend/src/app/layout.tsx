@@ -16,7 +16,7 @@ export default function RootLayout({
     <html lang="es">
       <body>
         <ClientLayoutWrapper>
-          <div className="pt-24">{children}</div>
+          <div className="pt-[60px]">{children}</div>
         </ClientLayoutWrapper>
       </body>
     </html>

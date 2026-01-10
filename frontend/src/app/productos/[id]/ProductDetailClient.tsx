@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
@@ -54,6 +54,11 @@ export default function ProductDetailClient({ product }: { product: any }) {
     return isNaN(parsed) ? NaN : parsed;
   })();
 
+  // Scroll al inicio al montar el componente
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [product.id]); // Se ejecuta cuando cambia el producto
+
   const handleAddToCart = async () => {
     setIsAdding(true);
 
@@ -66,7 +71,7 @@ export default function ProductDetailClient({ product }: { product: any }) {
       variantId: currentVariantData ? String(currentVariantData.id) : undefined,
       name: `${product.name} - ${current.name}`,
       price: finalPrice,
-      imageUrl: product.main_image_url,
+      main_image_url: product.main_image_url,
       unit: product.unit || 'kg',
       category: product.category,
       weight: weightNumber || 0, // Peso en kg de la variante
@@ -82,9 +87,10 @@ export default function ProductDetailClient({ product }: { product: any }) {
   return (
     <>
       <main className="min-h-screen bg-gray-50">
-        <section className="bg-white py-4 border-b">
+        {/* Breadcrumb - Compactado */}
+        <section className="bg-white py-2 border-b">
           <div className="container mx-auto px-4">
-            <nav className="text-sm text-gray-600">
+            <nav className="text-xs sm:text-sm text-gray-600">
               <Link href="/" className="hover:text-primary">Inicio</Link>
               <span className="mx-2">/</span>
               <Link href="/productos" className="hover:text-primary">Productos</Link>
@@ -94,7 +100,7 @@ export default function ProductDetailClient({ product }: { product: any }) {
           </div>
         </section>
 
-        <div className="container mx-auto px-4 py-6 sm:py-8">
+        <div className="container mx-auto px-4 py-4 sm:py-6">
           <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
             <div className="space-y-4">
               <div className="relative aspect-square overflow-hidden rounded-lg bg-white shadow-sm">

@@ -186,6 +186,7 @@ export class OrderService {
       }
 
       // 2. Crear los items del pedido
+      // IMPORTANTE: Los precios y pesos vienen de las VARIANTES seleccionadas por el cliente
       const orderItems = [];
       for (const item of orderData.items) {
         // Obtener información del producto
@@ -208,6 +209,8 @@ export class OrderService {
           `${farmer?.first_name} ${farmer?.last_name}` || 
           'Agricultor no especificado';
 
+        // El precio unitario SIEMPRE viene de la variante seleccionada (item.unit_price)
+        // NO usamos product.price ya que es solo informativo
         const orderItem = {
           id: uuidv4(),
           order_id: orderId,
@@ -216,7 +219,7 @@ export class OrderService {
           product_image: product.main_image_url,
           farmer_name: farmerName,
           quantity: item.quantity,
-          unit_price: item.unit_price,
+          unit_price: item.unit_price, // Precio de la variante
           total_price: item.quantity * item.unit_price
         };
 
@@ -246,11 +249,6 @@ export class OrderService {
       if (discount_code_used) {
         const { DiscountService } = await import('./discountService');
         await DiscountService.markCodeAsUsed(discount_code_used, orderId);
-      }
-
-      // 5. Actualizar stock de productos (simplificado)
-      for (const item of orderData.items) {
-        await this.updateProductStock(item.product_id, item.quantity);
       }
 
       // Devolver el pedido completo con items
@@ -442,14 +440,6 @@ export class OrderService {
       // Añadir entrada al timeline
       await this.addTimelineEntry(orderId, 'cancelled', reason || 'Pedido cancelado', cancelledBy);
 
-      // Restaurar stock (simplificado)
-      const orderDetails = await this.getOrderById(orderId);
-      if (orderDetails?.items) {
-        for (const item of orderDetails.items) {
-          await this.updateProductStock(item.product_id, -item.quantity); // Restaurar stock
-        }
-      }
-
       return await this.getOrderById(orderId) as Order;
     } catch (error) {
       console.error('Error al cancelar pedido:', error);
@@ -616,36 +606,4 @@ export class OrderService {
     }
   }
 
-  private static async updateProductStock(productId: string, quantitySold: number): Promise<void> {
-    try {
-      // Obtener stock actual
-      const { data: product, error: getError } = await supabaseAdmin
-        .from('products')
-        .select('stock_quantity')
-        .eq('id', productId)
-        .single();
-
-      if (getError || !product) {
-        console.warn(`Producto no encontrado para actualizar stock: ${productId}`);
-        return;
-      }
-
-      // Actualizar stock
-      const newStock = Math.max(0, product.stock_quantity - quantitySold);
-      
-      const { error: updateError } = await supabaseAdmin
-        .from('products')
-        .update({ 
-          stock_quantity: newStock,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', productId);
-
-      if (updateError) {
-        console.warn('Error al actualizar stock:', updateError.message);
-      }
-    } catch (error) {
-      console.warn('Error al actualizar stock del producto:', error);
-    }
-  }
 }

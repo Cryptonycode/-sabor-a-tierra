@@ -39,6 +39,11 @@ export default function ProductPage() {
     if (productId) fetchProduct();
   }, [productId]);
 
+  // Scroll al inicio cuando cambia el producto
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [productId]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -77,7 +82,7 @@ export default function ProductPage() {
       variantId: String(currentVariant.id),
       name: `${product.name} - ${currentVariant.name}`,
       price: finalPrice,
-      imageUrl: product.main_image_url,
+      main_image_url: product.main_image_url,
       unit: product.unit,
       category: product.category,
       weight: currentVariant.weight || 0, // Peso en kg de la variante
@@ -173,9 +178,6 @@ export default function ProductPage() {
                           </div>
                           <div className="text-right">
                             <p className="text-lg font-bold text-accent">€{Number(variant.price).toFixed(2)} EUR</p>
-                            {typeof variant.stock_quantity === 'number' && (
-                              <p className="text-xs text-gray-500">Stock: {variant.stock_quantity}</p>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -340,7 +342,7 @@ export default function ProductPage() {
                   {product.farmer?.image && (
                     <Image
                       src={product.farmer.image}
-                      alt={product.farmer.name}
+                      alt={product.farmer?.name || 'Agricultor'}
                       fill
                       className="object-cover"
                     />
@@ -348,9 +350,9 @@ export default function ProductPage() {
                 </div>
                 
                 <div>
-                  <h3 className="text-xl font-bold text-primary mb-4">{product.farmer.name}</h3>
+                  <h3 className="text-xl font-bold text-primary mb-4">{product.farmer?.name || 'Agricultor'}</h3>
                   <p className="text-gray-600 mb-4">
-                    {showFullStory ? product.farmer.story : product.farmer.story?.slice(0, 200)}
+                    {showFullStory ? (product.farmer?.story || '') : (product.farmer?.story?.slice(0, 200) || '')}
                   </p>
                   <button
                     onClick={() => setShowFullStory(!showFullStory)}
@@ -361,8 +363,8 @@ export default function ProductPage() {
                   
                   <div className="bg-gray-50 rounded-lg p-4 mb-6">
                     <h4 className="font-semibold text-gray-800 mb-2">Ubicación:</h4>
-                    <p className="text-gray-600 text-sm">{product.farmer.location}</p>
-                    <p className="text-gray-500 text-xs">{product.farmer.coordinates}</p>
+                    <p className="text-gray-600 text-sm">{product.farmer?.location || 'Ubicación no disponible'}</p>
+                    <p className="text-gray-500 text-xs">{product.farmer?.coordinates || ''}</p>
                     <p className="text-blue-600 text-sm mt-2 cursor-pointer hover:underline">
                       📍 Cómo llegar • Ampliar el mapa
                     </p>
@@ -375,7 +377,7 @@ export default function ProductPage() {
                   onClick={handleAddToCart}
                   className="bg-accent hover:bg-accent/90 text-white font-bold py-3 px-8 rounded-lg transition-colors"
                 >
-                  Apoyar a {product.farmer.name} con la compra de {product.name}
+                  Apoyar a {product.farmer?.name || 'este agricultor'} con la compra de {product.name}
                 </button>
               </div>
             </div>

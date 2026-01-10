@@ -6,14 +6,9 @@ import ImageUpload from '@/components/ImageUpload';
 interface ProductVariant {
   id?: string;
   name: string;
-  description?: string;
   price: number;
-  stock_quantity: number;
-  sku?: string;
-  weight?: number;
-  unit?: string;
-  pieces?: number;
-  is_available: boolean;
+  weight: number;
+  unit: string;
 }
 
 interface Product {
@@ -21,18 +16,11 @@ interface Product {
   name: string;
   description: string;
   price: number;
-  price_per_kg?: number;
-  price_per_box?: number;
   farmer_id: string;
   farmer_name?: string;
   category: string;
   unit: string;
   main_image_url?: string;
-  images?: string[];
-  is_available: boolean;
-  stock_quantity: number;
-  status: 'draft' | 'published' | 'archived';
-  featured: boolean;
   variants?: ProductVariant[];
   created_at: string;
   updated_at: string;
@@ -46,10 +34,6 @@ interface ProductForm {
   category: string;
   unit: string;
   main_image_url: string;
-  is_available: boolean;
-  stock_quantity: number;
-  status: 'draft' | 'published' | 'archived';
-  featured: boolean;
 }
 
 export default function ProductsManagementPage() {
@@ -65,11 +49,7 @@ export default function ProductsManagementPage() {
     farmer_id: '',
     category: '',
     unit: 'kg',
-    main_image_url: '',
-    is_available: true,
-    stock_quantity: 0,
-    status: 'published', // Cambiado de 'draft' a 'published'
-    featured: false
+    main_image_url: ''
   });
 
   // Estado para gestionar variantes
@@ -78,14 +58,9 @@ export default function ProductsManagementPage() {
   const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(null);
   const [variantFormData, setVariantFormData] = useState<ProductVariant>({
     name: '',
-    description: '',
     price: 0,
-    stock_quantity: 0,
-    sku: '',
     weight: 0,
-    unit: 'kg',
-    pieces: 1,
-    is_available: true
+    unit: 'kg'
   });
 
   const categories = [
@@ -148,21 +123,37 @@ export default function ProductsManagementPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Construir payload de variantes: usar las existentes y añadir la variante en edición si procede
+      // Validación estricta de números para evitar NaN
       const toNumber = (val: any, integer: boolean = false) => {
-        if (val === null || val === undefined) return 0;
+        if (val === null || val === undefined || val === '') return 0;
         const n = Number(val);
-        if (!Number.isFinite(n)) return 0;
+        if (!Number.isFinite(n) || isNaN(n)) return 0;
         return integer ? Math.trunc(n) : n;
       };
 
-      const normalizeVariant = (v: any) => ({
-        ...v,
-        price: toNumber(v.price),
-        stock_quantity: toNumber(v.stock_quantity, true),
-        weight: v.weight !== undefined ? toNumber(v.weight) : undefined,
-        pieces: v.pieces !== undefined ? toNumber(v.pieces, true) : undefined,
-      });
+      const normalizeVariant = (v: any) => {
+        // Forzar conversión a números válidos (parseFloat || 0)
+        const price = parseFloat(String(v.price)) || 0;
+        const weight = parseFloat(String(v.weight)) || 0;
+        
+        // SOLO 4 CAMPOS que acepta el backend
+        const normalized = {
+          name: String(v.name || '').trim(),
+          price: price, // OBLIGATORIO
+          weight: weight, // OBLIGATORIO
+          unit: String(v.unit || 'kg')
+        };
+        
+        // Validar campos obligatorios
+        if (normalized.price <= 0) {
+          throw new Error(`La variante "${v.name}" debe tener un precio válido mayor a 0`);
+        }
+        if (normalized.weight <= 0) {
+          throw new Error(`La variante "${v.name}" debe tener un peso válido mayor a 0`);
+        }
+        
+        return normalized;
+      };
 
       let variantsPayload = [...variants].map(normalizeVariant);
       const isNewVariantPending = !editingVariant && showVariantForm && variantFormData.name.trim() && variantFormData.price > 0;
@@ -170,21 +161,41 @@ export default function ProductsManagementPage() {
         variantsPayload.push(normalizeVariant({ ...variantFormData, id: undefined }));
       }
 
-      const payload = { ...formData, variants: variantsPayload } as any;
+      // Para productos nuevos, debe haber al menos una variante
+      if (!editingProduct && variantsPayload.length === 0) {
+        alert('Debes añadir al menos una variante con precio y peso válidos antes de crear el producto');
+        return;
+      }
+
+      // PAYLOAD ULTRA LIMPIO - SOLO 7 CAMPOS
+      const normalizedFormData = {
+        name: String(formData.name).trim(),
+        description: String(formData.description || '').trim(),
+        price: parseFloat(String(formData.price)) || 0,
+        category: String(formData.category),
+        main_image_url: String(formData.main_image_url || ''),
+        farmer_id: String(formData.farmer_id),
+        unit: String(formData.unit || 'kg')
+      };
+
+      const payload = { ...normalizedFormData, variants: variantsPayload } as any;
+      
+      console.log('📦 Payload a enviar:', JSON.stringify(payload, null, 2));
 
       if (editingProduct) {
-        await apiClient.put(`/products/${editingProduct.id}`, payload);
+        const response = await apiClient.put(`/products/${editingProduct.id}`, payload);
         alert('Producto actualizado con éxito');
       } else {
-        await apiClient.post('/products', payload);
+        const response = await apiClient.post('/products', payload);
         alert('Producto creado con éxito');
       }
       
       await fetchProducts();
       handleCloseModal();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving product:', error);
-      alert('Error al guardar el producto');
+      const errorMessage = error?.response?.data?.message || error?.message || 'Error al guardar el producto';
+      alert(`Error: ${errorMessage}`);
     }
   };
 
@@ -208,11 +219,7 @@ export default function ProductsManagementPage() {
       farmer_id: product.farmer_id,
       category: product.category,
       unit: product.unit,
-      main_image_url: product.main_image_url || '',
-      is_available: product.is_available,
-      stock_quantity: product.stock_quantity,
-      status: product.status,
-      featured: product.featured
+      main_image_url: product.main_image_url || ''
     });
     
     // Cargar variantes del producto
@@ -246,22 +253,13 @@ export default function ProductsManagementPage() {
       farmer_id: '',
       category: '',
       unit: 'kg',
-      main_image_url: '',
-      is_available: true,
-      stock_quantity: 0,
-      status: 'published',
-      featured: false
+      main_image_url: ''
     });
     setVariantFormData({
       name: '',
-      description: '',
       price: 0,
-      stock_quantity: 0,
-      sku: '',
       weight: 0,
-      unit: 'kg',
-      pieces: 1,
-      is_available: true
+      unit: 'kg'
     });
   };
 
@@ -272,12 +270,8 @@ export default function ProductsManagementPage() {
       name: '',
       description: '',
       price: 0,
-      stock_quantity: 0,
-      sku: '',
       weight: 0,
-      unit: formData.unit,
-      pieces: 1,
-      is_available: true
+      unit: formData.unit
     });
     setShowVariantForm(true);
   };
@@ -289,11 +283,35 @@ export default function ProductsManagementPage() {
   };
 
   const handleSaveVariant = async () => {
-    if (!editingProduct) {
-      alert('Debes guardar el producto primero antes de añadir variantes');
+    // Validar campos obligatorios
+    if (!variantFormData.name || !variantFormData.name.trim()) {
+      alert('El nombre de la variante es obligatorio');
+      return;
+    }
+    if (!variantFormData.price || variantFormData.price <= 0) {
+      alert('El precio de la variante debe ser mayor a 0');
+      return;
+    }
+    if (!variantFormData.weight || variantFormData.weight <= 0) {
+      alert('El peso de la variante debe ser mayor a 0');
       return;
     }
 
+    // Si es un producto nuevo, añadir a la lista temporal
+    if (!editingProduct) {
+      setVariants([...variants, { ...variantFormData, id: undefined }]);
+      setShowVariantForm(false);
+      setVariantFormData({
+        name: '',
+        description: '',
+        price: 0,
+        weight: 0,
+        unit: 'kg'
+      });
+      return;
+    }
+
+    // Si es un producto existente, guardar en el servidor
     try {
       if (editingVariant && editingVariant.id) {
         // Actualizar variante existente
@@ -313,12 +331,8 @@ export default function ProductsManagementPage() {
         name: '',
         description: '',
         price: 0,
-        stock_quantity: 0,
-        sku: '',
         weight: 0,
-        unit: 'kg',
-        pieces: 1,
-        is_available: true
+        unit: 'kg'
       });
     } catch (error) {
       console.error('Error al guardar variante:', error);
@@ -344,25 +358,6 @@ export default function ProductsManagementPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const badges = {
-      draft: 'bg-gray-100 text-gray-800',
-      published: 'bg-green-100 text-green-800',
-      archived: 'bg-red-100 text-red-800'
-    };
-    
-    const labels = {
-      draft: 'Borrador',
-      published: 'Publicado',
-      archived: 'Archivado'
-    };
-
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badges[status as keyof typeof badges]}`}>
-        {labels[status as keyof typeof labels]}
-      </span>
-    );
-  };
 
   if (loading) {
     return (
@@ -404,12 +399,6 @@ export default function ProductsManagementPage() {
                   Precio
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Stock
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
@@ -429,11 +418,6 @@ export default function ProductsManagementPage() {
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">{product.name}</div>
                         <div className="text-sm text-gray-500">{product.category}</div>
-                        {product.featured && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                            ⭐ Destacado
-                          </span>
-                        )}
                       </div>
                     </div>
                   </td>
@@ -442,22 +426,6 @@ export default function ProductsManagementPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     €{product.price.toFixed(2)}/{product.unit}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{product.stock_quantity}</div>
-                    <div className={`text-xs ${product.stock_quantity < 10 ? 'text-red-500' : 'text-green-500'}`}>
-                      {product.stock_quantity < 10 ? 'Stock bajo' : 'Stock OK'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(product.status)}
-                    {!product.is_available && (
-                      <div className="mt-1">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-                          No disponible
-                        </span>
-                      </div>
-                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
@@ -564,40 +532,20 @@ export default function ProductsManagementPage() {
 
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Precio (€)</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Precio Informativo (€)
+                        <span className="text-gray-500 font-normal ml-1">(Opcional)</span>
+                      </label>
                       <input
                         type="number"
                         step="0.01"
                         min="0"
-                        required
-                        value={formData.price}
-                        onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value)})}
+                        value={formData.price || ''}
+                        onChange={(e) => setFormData({...formData, price: e.target.value ? parseFloat(e.target.value) || 0 : 0})}
                         className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                        placeholder="Desde..."
                       />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Stock</label>
-                      <input
-                        type="number"
-                        min="0"
-                        required
-                        value={formData.stock_quantity}
-                        onChange={(e) => setFormData({...formData, stock_quantity: parseInt(e.target.value)})}
-                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Estado</label>
-                      <select
-                        required
-                        value={formData.status}
-                        onChange={(e) => setFormData({...formData, status: e.target.value as any})}
-                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
-                      >
-                        <option value="published">Publicado</option>
-                        <option value="draft">Borrador</option>
-                        <option value="archived">Archivado</option>
-                      </select>
+                      <p className="text-xs text-gray-500 mt-0.5">Solo para mostrar "Desde X€"</p>
                     </div>
                   </div>
 
@@ -611,34 +559,6 @@ export default function ProductsManagementPage() {
                       className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
                       placeholder="Describe el producto..."
                     />
-                  </div>
-
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="is_available"
-                        checked={formData.is_available}
-                        onChange={(e) => setFormData({...formData, is_available: e.target.checked})}
-                        className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-                      />
-                      <label htmlFor="is_available" className="ml-2 block text-xs text-gray-900">
-                        Disponible
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="featured"
-                        checked={formData.featured}
-                        onChange={(e) => setFormData({...formData, featured: e.target.checked})}
-                        className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-                      />
-                      <label htmlFor="featured" className="ml-2 block text-xs text-gray-900">
-                        ⭐ Destacado
-                      </label>
-                    </div>
                   </div>
                 </div>
 
@@ -675,7 +595,7 @@ export default function ProductsManagementPage() {
                               <div className="flex-1">
                                 <p className="font-medium text-gray-800">{variant.name}</p>
                                 <p className="text-gray-600">
-                                  €{variant.price.toFixed(2)} | Stock: {variant.stock_quantity}
+                                  €{variant.price.toFixed(2)}
                                   {variant.weight && ` | ${variant.weight}${variant.unit}`}
                                 </p>
                               </div>
@@ -703,10 +623,59 @@ export default function ProductsManagementPage() {
                   )}
 
                   {!editingProduct && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <p className="text-xs text-blue-700">
-                        💡 <strong>Tip:</strong> Guarda el producto primero para poder añadir variantes (diferentes tamaños, presentaciones, etc.)
-                      </p>
+                    <div className="space-y-3">
+                      <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
+                        <p className="text-xs text-yellow-800 font-semibold mb-1">
+                          ⚠️ Variante Obligatoria
+                        </p>
+                        <p className="text-xs text-yellow-700">
+                          Debes añadir al menos una variante con <strong>precio</strong> y <strong>peso</strong> válidos antes de crear el producto.
+                        </p>
+                      </div>
+                      
+                      {/* Botón para añadir variante en productos nuevos */}
+                      {!showVariantForm && variants.length === 0 && (
+                        <button
+                          type="button"
+                          onClick={handleAddVariant}
+                          className="w-full text-sm bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 transition-colors font-medium"
+                        >
+                          + Añadir Primera Variante
+                        </button>
+                      )}
+                      
+                      {/* Mostrar variantes añadidas */}
+                      {variants.length > 0 && (
+                        <div className="border border-gray-200 rounded-lg p-2">
+                          <p className="text-xs font-semibold text-gray-700 mb-2">Variantes añadidas:</p>
+                          {variants.map((variant, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-gray-50 p-2 rounded text-xs mb-1">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-800">{variant.name}</p>
+                                <p className="text-gray-600">
+                                  €{variant.price.toFixed(2)} | {variant.weight}kg
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setVariants(variants.filter((_, i) => i !== idx))}
+                                className="text-red-600 hover:text-red-800 px-1"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          ))}
+                          {!showVariantForm && (
+                            <button
+                              type="button"
+                              onClick={handleAddVariant}
+                              className="w-full text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded mt-2"
+                            >
+                              + Añadir Otra Variante
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -714,10 +683,13 @@ export default function ProductsManagementPage() {
 
               {/* Formulario de variante (modal interno) */}
               {showVariantForm && (
-                <div className="border-t pt-4 mt-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                <div className="border-t pt-4 mt-4 bg-gray-50 p-4 rounded-lg">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-1">
                     {editingVariant ? 'Editar Variante' : 'Nueva Variante'}
                   </h4>
+                  <p className="text-xs text-gray-600 mb-3">
+                    {!editingProduct && '⚠️ Esta variante se guardará junto con el producto. Precio y peso son obligatorios.'}
+                  </p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Nombre</label>
@@ -730,51 +702,30 @@ export default function ProductsManagementPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">SKU</label>
-                      <input
-                        type="text"
-                        value={variantFormData.sku}
-                        onChange={(e) => setVariantFormData({...variantFormData, sku: e.target.value})}
-                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
-                        placeholder="opcional"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Precio (€)</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Precio (€) <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="number"
                         step="0.01"
-                        value={variantFormData.price}
-                        onChange={(e) => setVariantFormData({...variantFormData, price: parseFloat(e.target.value)})}
+                        min="0"
+                        required
+                        value={variantFormData.price || ''}
+                        onChange={(e) => setVariantFormData({...variantFormData, price: e.target.value ? parseFloat(e.target.value) || 0 : 0})}
                         className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                        placeholder="0.00"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Stock</label>
-                      <input
-                        type="number"
-                        value={variantFormData.stock_quantity}
-                        onChange={(e) => setVariantFormData({...variantFormData, stock_quantity: parseInt(e.target.value)})}
-                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Peso/Cantidad</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Peso/Cantidad (kg)</label>
                       <input
                         type="number"
                         step="0.01"
-                        value={variantFormData.weight}
-                        onChange={(e) => setVariantFormData({...variantFormData, weight: parseFloat(e.target.value)})}
+                        min="0"
+                        value={variantFormData.weight || ''}
+                        onChange={(e) => setVariantFormData({...variantFormData, weight: e.target.value ? parseFloat(e.target.value) || 0 : 0})}
                         className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Unidades/Piezas</label>
-                      <input
-                        type="number"
-                        value={variantFormData.pieces}
-                        onChange={(e) => setVariantFormData({...variantFormData, pieces: parseInt(e.target.value)})}
-                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                        placeholder="0.00"
                       />
                     </div>
                   </div>

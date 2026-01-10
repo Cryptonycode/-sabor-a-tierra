@@ -19,7 +19,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [alerts, setAlerts] = useState([
-    { id: 1, type: 'warning', message: '3 productos con stock bajo', time: '5 min' },
+    { id: 1, type: 'warning', message: '3 productos pendientes de revisión', time: '5 min' },
     { id: 2, type: 'info', message: '2 nuevas solicitudes de agricultores', time: '10 min' },
     { id: 3, type: 'success', message: '5 pedidos completados hoy', time: '1 hora' },
   ]);

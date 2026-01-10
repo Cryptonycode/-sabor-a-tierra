@@ -88,7 +88,6 @@ export interface ApiProduct {
   unit: string;
   main_image_url: string;
   is_available: boolean;
-  stock_quantity: number;
   status: string;
   featured: boolean;
   created_at: string;

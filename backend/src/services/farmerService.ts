@@ -4,19 +4,12 @@ import { Farmer, CreateFarmerRequest, FarmerWithProducts } from '../types/databa
 export class FarmerService {
   // Obtener todos los agricultores
   static async getAllFarmers(includeInactive = false, statusFilter?: string): Promise<Farmer[]> {
-    let query = supabaseAdmin
+    const query = supabaseAdmin
       .from('farmers')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!includeInactive && !statusFilter) {
-      query = query.eq('status', 'approved');
-    }
-
-    if (statusFilter) {
-      query = query.eq('status', statusFilter);
-    }
-
+    // Sin filtros de estado - todos los agricultores son visibles
     const { data, error } = await query;
 
     if (error) {

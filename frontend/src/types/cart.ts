@@ -4,7 +4,7 @@ export interface Product {
   variantId?: string;
   name: string;
   price: number;
-  imageUrl: string;
+  main_image_url: string; // Campo oficial de imagen
   unit: string;
   category?: string;
   weight?: number; // Peso en kg por unidad/variante

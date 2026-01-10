@@ -9,24 +9,22 @@ interface ProductCardProps {
   id: number | string;
   name: string;
   price: number;
-  imageUrl?: string;
-  main_image_url?: string; // Acepta también main_image_url de la API
+  main_image_url?: string; // Campo oficial de imagen
   unit: 'kg' | 'caja' | string;
   category?: string;
 }
 
-export default function ProductCard({ id, name, price, imageUrl, main_image_url, unit, category }: ProductCardProps) {
+export default function ProductCard({ id, name, price, main_image_url, unit, category }: ProductCardProps) {
   const { addToCart, openCart } = useCart();
   const [isAdding, setIsAdding] = useState(false);
 
-  // Usar main_image_url si existe, sino usar imageUrl
-  const imageSrc = main_image_url || imageUrl || '';
+  // Usar main_image_url como campo oficial
+  const imageSrc = main_image_url || '';
 
   // Log para depuración
   console.log('🖼️ ProductCard renderizado:', { 
     id, 
     name, 
-    imageUrl, 
     main_image_url, 
     imageSrc, 
     price, 
@@ -44,7 +42,7 @@ export default function ProductCard({ id, name, price, imageUrl, main_image_url,
       id: typeof id === 'string' ? parseInt(id) : id,
       name,
       price,
-      imageUrl: imageSrc,
+      main_image_url: imageSrc,
       unit,
       category,
     };
