@@ -174,7 +174,10 @@ export class OrderService {
           discount_code_used: discount_code_used,
           discount_amount: discount_amount,
           status: 'pending',
-          payment_status: orderData.payment_method === 'cash_on_delivery' ? 'pending' : 'paid',
+          // Lógica de payment_status según método de pago
+          payment_status: ['transferencia', 'bizum'].includes(orderData.payment_method) 
+            ? 'awaiting_payment' 
+            : 'paid',
           payment_method: orderData.payment_method,
           estimated_delivery_date: estimatedDeliveryDate
         }])
@@ -416,6 +419,35 @@ export class OrderService {
       return await this.getOrderById(orderId) as Order;
     } catch (error) {
       console.error('Error al actualizar estado del pedido:', error);
+      throw error;
+    }
+  }
+
+  // Actualizar estado de pago
+  static async updatePaymentStatus(orderId: string, newPaymentStatus: string): Promise<Order> {
+    try {
+      // Actualizar el estado de pago
+      const { data: order, error: updateError } = await supabaseAdmin
+        .from('orders')
+        .update({ 
+          payment_status: newPaymentStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw new Error(`Error al actualizar estado de pago: ${updateError.message}`);
+      }
+
+      // Añadir entrada al timeline
+      const statusLabel = newPaymentStatus === 'paid' ? 'Pago Confirmado' : `Estado de pago: ${newPaymentStatus}`;
+      await this.addTimelineEntry(orderId, statusLabel, `Estado de pago actualizado a ${newPaymentStatus}`, 'admin');
+
+      return await this.getOrderById(orderId) as Order;
+    } catch (error) {
+      console.error('Error al actualizar estado de pago:', error);
       throw error;
     }
   }

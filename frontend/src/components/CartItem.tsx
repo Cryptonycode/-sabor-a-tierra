@@ -30,7 +30,7 @@ export default function CartItem({ item, showImage = true, compact = false }: Ca
           {showImage && (
             <div className="relative w-10 h-10 sm:w-12 sm:h-12 overflow-hidden rounded flex-shrink-0">
               <Image
-                src={item.imageUrl}
+                src={(item as any).main_image_url || item.imageUrl}
                 alt={item.name}
                 fill
                 className="object-cover"
@@ -39,8 +39,8 @@ export default function CartItem({ item, showImage = true, compact = false }: Ca
           )}
           <div className="flex-1 min-w-0">
             <h4 className="text-sm font-medium text-gray-800 truncate">{item.name}</h4>
-            <p className="text-xs text-gray-500">
-              {item.price.toFixed(2)}€/{item.unit}
+            <p className="text-xs text-gray-500 uppercase">
+              {item.unit}
             </p>
           </div>
         </div>
@@ -84,7 +84,7 @@ export default function CartItem({ item, showImage = true, compact = false }: Ca
         {showImage && (
           <div className="relative w-16 h-16 sm:w-20 sm:h-20 overflow-hidden rounded-lg flex-shrink-0">
             <Image
-              src={item.imageUrl}
+              src={(item as any).main_image_url || item.imageUrl}
               alt={item.name}
               fill
               className="object-cover"
@@ -94,8 +94,8 @@ export default function CartItem({ item, showImage = true, compact = false }: Ca
         
         <div className="flex-1 min-w-0">
           <h3 className="text-base sm:text-lg font-semibold text-gray-800">{item.name}</h3>
-          <p className="text-sm sm:text-base text-gray-600">
-            {item.price.toFixed(2)}€/{item.unit}
+          <p className="text-sm sm:text-base text-gray-600 uppercase">
+            {item.unit}
           </p>
         </div>
       </div>

@@ -10,10 +10,14 @@ interface Order {
   order_number: string;
   customer_email: string;
   customer_name: string;
+  customer_phone?: string;
   delivery_address: string;
   delivery_city: string;
   delivery_postal_code: string;
+  delivery_province?: string;
   total_amount: number;
+  subtotal?: number;
+  shipping_cost?: number;
   order_status: string;
   payment_status: string;
   payment_method: string;
@@ -66,10 +70,19 @@ export default function OrderConfirmationPage() {
   const fetchOrder = async () => {
     try {
       setLoading(true);
+      console.log(`🔍 Cargando pedido con ID: ${orderId}`);
       const response = await apiClient.get<Order>(`/orders/${orderId}`);
+      console.log('✅ Datos del pedido recibidos:', response);
+      
+      // Asegurarse de que tenemos los datos mínimos necesarios
+      if (!response || !response.id) {
+        throw new Error('Respuesta del servidor inválida');
+      }
+      
       setOrder(response);
+      setError(null);
     } catch (error) {
-      console.error('Error fetching order:', error);
+      console.error('❌ Error al cargar el pedido:', error);
       setError('No se pudo cargar la información del pedido.');
       
       // Mock data para desarrollo
@@ -116,11 +129,23 @@ export default function OrderConfirmationPage() {
   const getPaymentMethodLabel = (method: string) => {
     const methods = {
       card: 'Tarjeta de Crédito/Débito',
-      paypal: 'PayPal',
-      transfer: 'Transferencia Bancaria',
+      bizum: 'Bizum',
+      transferencia: 'Transferencia Bancaria',
+      transfer: 'Transferencia Bancaria', // Retrocompatibilidad
       cash_on_delivery: 'Pago Contra Reembolso'
     };
     return methods[method as keyof typeof methods] || method;
+  };
+
+  const getPaymentStatusLabel = (status: string) => {
+    const statuses = {
+      paid: 'Pagado',
+      awaiting_payment: 'Esperando Pago',
+      pending_payment: 'Pendiente de Pago',
+      pending: 'Pendiente',
+      failed: 'Fallido'
+    };
+    return statuses[status as keyof typeof statuses] || status;
   };
 
   const getStatusColor = (status: string) => {
@@ -192,12 +217,16 @@ export default function OrderConfirmationPage() {
               <div className="text-3xl mb-2">🚚</div>
               <h3 className="font-semibold text-gray-900">Entrega Estimada</h3>
               <p className="text-sm text-gray-600">
-                {new Date(order.estimated_delivery).toLocaleDateString('es-ES', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
+                {order.estimated_delivery ? (
+                  new Date(order.estimated_delivery).toLocaleDateString('es-ES', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })
+                ) : (
+                  'Por confirmar'
+                )}
               </p>
             </div>
             
@@ -206,12 +235,120 @@ export default function OrderConfirmationPage() {
               <h3 className="font-semibold text-gray-900">Pago</h3>
               <p className="text-sm text-gray-600">
                 <span className={`font-medium ${order.payment_status === 'paid' ? 'text-green-600' : 'text-yellow-600'}`}>
-                  {order.payment_status === 'paid' ? 'Confirmado' : 'Pendiente'}
+                  {getPaymentStatusLabel(order.payment_status)}
                 </span><br/>
                 {getPaymentMethodLabel(order.payment_method)}
               </p>
             </div>
           </div>
+
+          {/* Instrucciones de Pago para Transferencia/Bizum */}
+          {(order.payment_method === 'transferencia' || order.payment_method === 'transfer' || order.payment_method === 'bizum') && 
+           (order.payment_status === 'awaiting_payment' || order.payment_status === 'pending_payment') && (
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-6 mb-8 rounded-lg shadow">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-6 w-6 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-4 flex-1">
+                  <h3 className="text-lg font-bold text-yellow-800 mb-3">
+                    ⚠️ Pendiente de Pago
+                  </h3>
+                  <p className="text-sm text-yellow-700 mb-4">
+                    Tu pedido ha sido registrado pero aún no hemos recibido el pago. Por favor, completa la transferencia para que podamos procesar tu pedido.
+                  </p>
+
+                  {(order.payment_method === 'transferencia' || order.payment_method === 'transfer') && (
+                    <div className="bg-white rounded-lg p-4 border border-yellow-300">
+                      <h4 className="font-semibold text-gray-900 mb-3">
+                        🏦 Realiza tu transferencia al IBAN:
+                      </h4>
+                      <div className="bg-gray-50 rounded p-3 mb-3">
+                        <p className="text-center font-mono font-bold text-xl text-primary">
+                          ES91 2100 0418 4502 0005 1332
+                        </p>
+                        <p className="text-center text-xs text-gray-600 mt-1">CaixaBank - Sabor a Tierra S.L.</p>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Concepto:</span>
+                          <span className="font-mono font-semibold">{order.order_number}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-2">
+                          <span className="text-gray-600">Importe:</span>
+                          <span className="font-bold text-lg text-accent">€{order.total_amount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-orange-50 border-l-4 border-orange-500 p-4 mt-4">
+                        <p className="text-sm font-semibold text-orange-800">
+                          ⚠️ Es imprescindible enviar una captura de pantalla con el comprobante por WhatsApp para verificar el pedido
+                        </p>
+                      </div>
+                      
+                      <button
+                        className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-md"
+                        onClick={() => alert('Funcionalidad de WhatsApp próximamente')}
+                      >
+                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                        </svg>
+                        Enviar comprobante por WhatsApp
+                      </button>
+                    </div>
+                  )}
+
+                  {order.payment_method === 'bizum' && (
+                    <div className="bg-white rounded-lg p-4 border border-yellow-300">
+                      <h4 className="font-semibold text-gray-900 mb-3">
+                        📱 Realiza tu pago Bizum al número:
+                      </h4>
+                      <div className="bg-gray-50 rounded p-3 mb-3">
+                        <p className="text-center font-mono font-bold text-2xl text-primary">
+                          600 000 000
+                        </p>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Concepto:</span>
+                          <span className="font-mono font-semibold">{order.order_number}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-2">
+                          <span className="text-gray-600">Importe:</span>
+                          <span className="font-bold text-lg text-accent">€{order.total_amount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-orange-50 border-l-4 border-orange-500 p-4 mt-4">
+                        <p className="text-sm font-semibold text-orange-800">
+                          ⚠️ Es imprescindible enviar una captura de pantalla con el comprobante por WhatsApp para verificar el pedido
+                        </p>
+                      </div>
+                      
+                      <button
+                        className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-md"
+                        onClick={() => alert('Funcionalidad de WhatsApp próximamente')}
+                      >
+                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                        </svg>
+                        Enviar comprobante por WhatsApp
+                      </button>
+                    </div>
+                  )}
+
+                  <p className="text-sm text-yellow-800 font-semibold mt-4 bg-yellow-100 border border-yellow-400 rounded p-3">
+                    ⚠️ Es imprescindible enviar captura del comprobante para procesar el pedido
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-2">
+                    Tu pedido se procesará en un plazo máximo de 24 horas hábiles tras verificar el pago.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Order Details */}
@@ -278,8 +415,8 @@ export default function OrderConfirmationPage() {
                     <span>€4.99</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>IVA (21%):</span>
-                    <span>€{(order.total_amount - (order.total_amount / 1.21) - 4.99).toFixed(2)}</span>
+                    <span>IVA (4%):</span>
+                    <span>Incluido</span>
                   </div>
                   <div className="flex justify-between text-lg font-semibold border-t pt-2">
                     <span>Total:</span>

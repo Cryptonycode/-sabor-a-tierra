@@ -38,26 +38,65 @@ export default function ProductCard({ id, name, price, main_image_url, unit, cat
     
     setIsAdding(true);
     
-    const product: Product = {
-      id: typeof id === 'string' ? parseInt(id) : id,
-      name,
-      price,
-      main_image_url: imageSrc,
-      unit,
-      category,
-    };
-
-    addToCart(product);
-    
-    // Simular una pequeña demora para mejor UX
-    await new Promise(resolve => setTimeout(resolve, 300));
-    setIsAdding(false);
-    
-    // Abrir el carrito brevemente para mostrar que se añadió
-    openCart();
-    setTimeout(() => {
-      // No cerrar automáticamente, dejar que el usuario decida
-    }, 1000);
+    try {
+      // Obtener las variantes del producto
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/products/${id}`);
+      
+      if (!response.ok) {
+        throw new Error('No se pudo obtener el producto');
+      }
+      
+      const productData = await response.json();
+      const variants = productData.variants || [];
+      
+      if (variants.length === 0) {
+        alert('Este producto no tiene variantes disponibles. Por favor, contáctanos.');
+        setIsAdding(false);
+        return;
+      }
+      
+      // Seleccionar la variante con menor peso
+      const smallestVariant = variants.reduce((min: any, current: any) => {
+        const minWeight = parseFloat(min.weight) || 0;
+        const currentWeight = parseFloat(current.weight) || 0;
+        return currentWeight < minWeight ? current : min;
+      });
+      
+      // Validar que la variante tenga peso y precio
+      if (!smallestVariant.weight || !smallestVariant.price) {
+        alert('Error: La variante seleccionada no tiene datos completos.');
+        setIsAdding(false);
+        return;
+      }
+      
+      // Crear el objeto Product con la variante seleccionada
+      const productToAdd: Product = {
+        id: `${id}-${smallestVariant.id}`,
+        productId: String(id),
+        variantId: String(smallestVariant.id),
+        name: `${name} - ${smallestVariant.name}`,
+        price: parseFloat(smallestVariant.price) || 0,
+        main_image_url: imageSrc,
+        unit: smallestVariant.unit || unit,
+        category,
+        weight: parseFloat(smallestVariant.weight) || 0, // ✅ PESO OBLIGATORIO
+      } as any;
+      
+      console.log('✅ Añadiendo producto al carrito con variante:', productToAdd);
+      
+      addToCart(productToAdd);
+      
+      // Simular una pequeña demora para mejor UX
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setIsAdding(false);
+      
+      // Abrir el carrito brevemente para mostrar que se añadió
+      openCart();
+    } catch (error) {
+      console.error('❌ Error al añadir producto:', error);
+      alert('Error al añadir el producto. Por favor, intenta desde la página del producto.');
+      setIsAdding(false);
+    }
   };
 
   return (

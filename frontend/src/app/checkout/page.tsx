@@ -19,7 +19,7 @@ interface CheckoutData {
     province: string;
     delivery_notes?: string;
   };
-  payment_method: 'card' | 'paypal' | 'transfer' | 'cash_on_delivery';
+  payment_method: 'card' | 'bizum' | 'transferencia' | 'cash_on_delivery';
   marketing_consent: boolean;
 }
 
@@ -124,10 +124,27 @@ export default function CheckoutPage() {
   };
 
   const calculateShipping = () => {
-    // Calcular envío basado en peso total
-    const totalWeight = cart.totalWeight || 0;
+    // ✅ VALIDACIÓN: Calcular peso sumando todos los items del carrito
+    const totalWeight = cart.items.reduce((sum, item) => {
+      const itemWeight = parseFloat(String(item.weight)) || 0;
+      
+      // ⚠️ VALIDACIÓN CRÍTICA: Si un item no tiene peso, es un error
+      if (itemWeight === 0) {
+        console.error('❌ ERROR: Producto sin peso en el carrito:', item);
+        // Asignar peso mínimo de 0.5kg para evitar envío gratis erróneo
+        return sum + (0.5 * item.quantity);
+      }
+      
+      return sum + (itemWeight * item.quantity);
+    }, 0);
     
-    if (totalWeight <= 0) return 0;
+    console.log('📦 Peso total calculado:', totalWeight, 'kg');
+    
+    // Nunca permitir peso 0 (evitar envío gratis por error)
+    if (totalWeight <= 0) {
+      console.warn('⚠️ Peso total es 0, aplicando envío mínimo');
+      return 3.90;
+    }
     
     if (totalWeight <= 4) {
       return 3.90;
@@ -138,8 +155,8 @@ export default function CheckoutPage() {
     } else if (totalWeight <= 20) {
       return 10.95;
     } else {
-      // Excede el límite de 20kg
-      return -1;
+      // Pedidos grandes - contactar por WhatsApp
+      return 10.95; // Tarifa base, se puede negociar
     }
   };
 
@@ -150,7 +167,7 @@ export default function CheckoutPage() {
   };
 
   const calculateTax = () => {
-    // Los precios ya incluyen IVA del 21%
+    // Los precios ya incluyen IVA del 4%
     // Este método ahora solo retorna 0 porque no sumamos IVA adicional
     return 0;
   };
@@ -183,20 +200,8 @@ export default function CheckoutPage() {
     try {
       setLoading(true);
 
-      // Validar que el peso no exceda el límite
-      const totalWeight = cart.totalWeight || 0;
-      if (totalWeight > 20) {
-        alert('El peso total del pedido excede el límite de 20kg. Por favor, reduce la cantidad de productos.');
-        setLoading(false);
-        return;
-      }
-
       const shippingCost = calculateShipping();
-      if (shippingCost < 0) {
-        alert('Error al calcular el envío. El peso del pedido puede ser incorrecto.');
-        setLoading(false);
-        return;
-      }
+      const totalWeight = cart.totalWeight || 0;
 
       const orderData = {
         items: cart.items.map(item => ({
@@ -219,19 +224,25 @@ export default function CheckoutPage() {
 
       const response: any = await apiClient.post('/orders', orderData);
       
-      // Extraer el ID de la respuesta de forma robusta
-      const orderId: string | undefined = response.id || response.order?.id;
+      // Log para debugging - Ver estructura completa de la respuesta
+      console.log('✅ Respuesta del pedido completa:', JSON.stringify(response, null, 2));
       
-      // Log para debugging
-      console.log('Respuesta del pedido:', response);
+      // Extraer el ID de la respuesta - El backend devuelve { success, orderId, ...order }
+      const orderId: string | undefined = response?.orderId || response?.id || response?.order?.id || response?.data?.id;
+      
+      console.log('📦 ID extraído del pedido:', orderId);
       
       // Verificar que tenemos un ID válido antes de redirigir
       if (!orderId) {
-        console.error('Error: No se recibió un ID válido del servidor', response);
+        console.error('❌ Error: No se recibió un ID válido del servidor');
+        console.error('Respuesta completa:', response);
+        console.error('Claves disponibles:', Object.keys(response || {}));
         alert('El pedido se creó pero hubo un problema al obtener su ID. Por favor, contacta con soporte.');
         return;
       }
 
+      console.log(`🚀 Redirigiendo a página de confirmación con ID: ${orderId}`);
+      
       // Redirigir a página de confirmación (la limpieza del carrito se hará allí)
       router.push(`/order-confirmation/${orderId}`);
 
@@ -466,8 +477,8 @@ export default function CheckoutPage() {
                     <div className="space-y-4">
                       {[
                         { value: 'card', label: 'Tarjeta de Crédito/Débito', icon: '💳', description: 'Visa, Mastercard, American Express' },
-                        { value: 'paypal', label: 'PayPal', icon: '🔵', description: 'Paga de forma segura con PayPal' },
-                        { value: 'transfer', label: 'Transferencia Bancaria', icon: '🏦', description: 'Transferencia directa a nuestra cuenta' }
+                        { value: 'bizum', label: 'Bizum', icon: '📱', description: 'Pago instantáneo con Bizum' },
+                        { value: 'transferencia', label: 'Transferencia Bancaria', icon: '🏦', description: 'Transferencia directa a nuestra cuenta' }
                       ].map((method) => (
                         <div
                           key={method.value}
@@ -551,8 +562,8 @@ export default function CheckoutPage() {
                       <h3 className="font-medium text-gray-900 mb-2">Método de Pago</h3>
                       <p className="text-sm text-gray-600">
                         {formData.payment_method === 'card' && '💳 Tarjeta de Crédito/Débito'}
-                        {formData.payment_method === 'paypal' && '🔵 PayPal'}
-                        {formData.payment_method === 'transfer' && '🏦 Transferencia Bancaria'}
+                        {formData.payment_method === 'bizum' && '📱 Bizum'}
+                        {formData.payment_method === 'transferencia' && '🏦 Transferencia Bancaria'}
                         {formData.payment_method === 'cash_on_delivery' && '💰 Pago Contra Reembolso'}
                       </p>
                     </div>
@@ -605,7 +616,7 @@ export default function CheckoutPage() {
                   {cart.items.map((item) => (
                     <div key={item.id} className="flex items-center space-x-3">
                       <img
-                        src={(item as any).imageUrl || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=60&h=60&fit=crop'}
+                        src={(item as any).main_image_url || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=60&h=60&fit=crop'}
                         alt={item.name}
                         className="w-12 h-12 object-cover rounded"
                       />
@@ -660,10 +671,10 @@ export default function CheckoutPage() {
                   )}
                   <div className="flex justify-between text-sm">
                     <span>Envío:</span>
-                    <span>{calculateShipping() === 0 ? 'Gratis' : `€${calculateShipping().toFixed(2)}`}</span>
+                    <span>€{calculateShipping().toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-gray-600">
-                    <span>IVA (21%):</span>
+                    <span>IVA (4%):</span>
                     <span>Incluido</span>
                   </div>
                   <div className="flex justify-between text-lg font-semibold border-t pt-2">
@@ -681,8 +692,17 @@ export default function CheckoutPage() {
                       📦 Peso total: {cart.totalWeight?.toFixed(2) || '0.00'} kg
                     </div>
                     {cart.totalWeight > 20 && (
-                      <div className="text-xs mt-1 text-red-600">
-                        ⚠️ El peso excede el límite de 20kg
+                      <div className="text-xs mt-2 text-green-700 bg-green-50 p-2 rounded">
+                        💼 Para pedidos superiores a 20 kg,{' '}
+                        <a 
+                          href="https://wa.me/34XXXXXXXXX?text=Hola,%20me%20interesa%20un%20pedido%20grande%20de%20más%20de%2020kg"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold underline hover:text-green-900"
+                        >
+                          consultar por WhatsApp
+                        </a>
+                        {' '}para obtener precios especiales
                       </div>
                     )}
                   </div>

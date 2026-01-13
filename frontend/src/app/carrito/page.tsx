@@ -37,7 +37,7 @@ export default function CartPage() {
     } else if (totalWeight <= 20) {
       shippingCost = 10.95;
     } else {
-      shippingCost = -1; // Indicador de peso excedido
+      shippingCost = 10.95; // Pedidos grandes - contactar WhatsApp
     }
   }
   
@@ -162,14 +162,23 @@ export default function CartPage() {
                       </span>
                     </div>
                     
-                    {shippingCost < 0 && (
-                      <div className="bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700">
-                        ⚠️ El peso total excede 20kg. Reduce la cantidad de productos.
+                    {totalWeight > 20 && (
+                      <div className="bg-green-50 border border-green-200 rounded p-2 text-xs text-green-700">
+                        💼 Para pedidos superiores a 20 kg,{' '}
+                        <a 
+                          href="https://wa.me/34XXXXXXXXX?text=Hola,%20necesito%20un%20pedido%20grande"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold underline hover:text-green-900"
+                        >
+                          consultar por WhatsApp
+                        </a>
+                        {' '}para precios especiales
                       </div>
                     )}
                     
                     <div className="flex justify-between text-sm text-gray-600">
-                      <span>IVA (21%):</span>
+                      <span>IVA (4%):</span>
                       <span>Incluido</span>
                     </div>
                     
@@ -186,10 +195,9 @@ export default function CartPage() {
                   {/* Botón de checkout */}
                   <button
                     onClick={handleCheckout}
-                    disabled={shippingCost < 0}
-                    className={`w-full btn-primary py-3 text-base sm:text-lg font-semibold mb-4 ${shippingCost < 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className="w-full btn-primary py-3 text-base sm:text-lg font-semibold mb-4"
                   >
-                    {shippingCost < 0 ? 'Reduce el peso del pedido' : 'Finalizar Compra'}
+                    Finalizar Compra
                   </button>
 
                   {/* Información adicional */}
@@ -205,7 +213,7 @@ export default function CartPage() {
                       <svg className="w-4 h-4 mt-0.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      <span>Límite máximo: 20kg por pedido</span>
+                      <span>Para pedidos superiores a 20 kg, consultar por WhatsApp para obtener precios especiales</span>
                     </div>
                     
                     <div className="flex items-start space-x-2">
@@ -229,7 +237,7 @@ export default function CartPage() {
                     <div className="flex flex-wrap gap-2">
                       <div className="bg-gray-100 rounded px-2 py-1 text-xs font-medium">VISA</div>
                       <div className="bg-gray-100 rounded px-2 py-1 text-xs font-medium">Mastercard</div>
-                      <div className="bg-gray-100 rounded px-2 py-1 text-xs font-medium">PayPal</div>
+                      <div className="bg-gray-100 rounded px-2 py-1 text-xs font-medium">Bizum</div>
                     </div>
                   </div>
                 </div>

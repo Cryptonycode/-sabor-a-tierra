@@ -26,7 +26,12 @@ router.post('/', async (req: Request, res: Response) => {
     // Enviar email de confirmación (simulado)
     console.log(`📧 Email de confirmación enviado a: ${orderData.customer_info.email}`);
     
-    return res.status(201).json(order);
+    // Devolver respuesta en formato consistente
+    return res.status(201).json({
+      success: true,
+      orderId: order.id,
+      ...order
+    });
   } catch (error) {
     console.error('Error al crear pedido:', error);
     return res.status(500).json({ 
@@ -95,6 +100,32 @@ router.put('/:id/status', async (req: Request, res: Response) => {
     return res.json(order);
   } catch (error) {
     console.error('Error al actualizar estado del pedido:', error);
+    return res.status(500).json({ 
+      error: 'Error interno del servidor',
+      message: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
+// PUT /api/orders/:id/payment-status - Actualizar estado de pago
+router.put('/:id/payment-status', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { payment_status } = req.body;
+    
+    if (!payment_status) {
+      return res.status(400).json({ error: 'El estado de pago es requerido' });
+    }
+
+    const order = await OrderService.updatePaymentStatus(id, payment_status);
+    
+    if (!order) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+    
+    return res.json(order);
+  } catch (error) {
+    console.error('Error al actualizar estado de pago:', error);
     return res.status(500).json({ 
       error: 'Error interno del servidor',
       message: error instanceof Error ? error.message : 'Error desconocido'
