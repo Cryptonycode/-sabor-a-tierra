@@ -34,7 +34,8 @@ export default function CheckoutPage() {
   const [discountMessage, setDiscountMessage] = useState('');
   const [mode, setMode] = useState<'choose' | 'guest' | 'login'>('choose');
   const [loginEmail, setLoginEmail] = useState('');
-  const [magicSentTo, setMagicSentTo] = useState<string | null>(null);
+  const [accessSentTo, setAccessSentTo] = useState<string | null>(null);
+  const [userDataLoaded, setUserDataLoaded] = useState<'none' | 'with_data' | 'without_data'>('none');
   const [formData, setFormData] = useState<CheckoutData>({
     customer_info: {
       first_name: '',
@@ -71,6 +72,76 @@ export default function CheckoutPage() {
       }
     } catch {}
   }, [isLoading, cart.items.length, router]);
+
+  // ✅ NUEVO: Cargar datos del usuario si está autenticado
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!isAuthenticated) return;
+      
+      try {
+        console.log('🔍 Usuario autenticado, cargando datos...');
+        
+        // Aquí iría la llamada real al backend
+        // const userData = await apiClient.get('/auth/me');
+        
+        // SIMULACIÓN con localStorage (reemplazar con llamada real)
+        const mockUserData = localStorage.getItem('userData');
+        
+        if (mockUserData) {
+          const userData = JSON.parse(mockUserData);
+          
+          // Verificar si tiene datos completos
+          const hasCompleteData = userData.first_name && userData.last_name && 
+                                   userData.phone && userData.address;
+          
+          if (hasCompleteData) {
+            console.log('✅ Datos encontrados, autorrellenando...');
+            
+            setFormData({
+              customer_info: {
+                first_name: userData.first_name || '',
+                last_name: userData.last_name || '',
+                email: userData.email || '',
+                phone: userData.phone || '',
+              },
+              delivery_address: {
+                address: userData.address || '',
+                city: userData.city || '',
+                postal_code: userData.postal_code || '',
+                province: userData.province || '',
+                delivery_notes: '',
+              },
+              payment_method: 'card',
+              marketing_consent: false,
+            });
+            
+            setMode('guest');
+            setUserDataLoaded('with_data');
+          } else {
+            console.log('📝 Autenticado pero sin datos completos');
+            setMode('guest');
+            setUserDataLoaded('without_data');
+            
+            if (userData.email) {
+              setFormData(prev => ({
+                ...prev,
+                customer_info: { ...prev.customer_info, email: userData.email }
+              }));
+            }
+          }
+        } else {
+          setMode('guest');
+          setUserDataLoaded('without_data');
+        }
+      } catch (error) {
+        console.error('Error al cargar datos:', error);
+        setMode('guest');
+        setUserDataLoaded('without_data');
+      }
+    };
+    
+    loadUserData();
+  }, [isAuthenticated]);
 
   const handleInputChange = (section: keyof CheckoutData | 'payment_method', field: string, value: string | boolean) => {
     console.log(`handleInputChange llamado con: section=${section}, field=${field}, value=${value}`);
@@ -314,24 +385,39 @@ export default function CheckoutPage() {
 
                     {mode === 'choose' && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="border rounded-lg p-6 bg-white shadow-sm">
+                        <div className="border rounded-lg p-6 bg-white shadow-sm hover:shadow-md transition-shadow">
                           <h3 className="text-lg font-semibold text-gray-900 mb-2">Continuar como Invitado</h3>
                           <p className="text-sm text-gray-600 mb-4">Rellena tus datos manualmente para completar el pedido.</p>
-                          <button onClick={() => setMode('guest')} className="w-full bg-primary text-white font-semibold py-2 px-4 rounded hover:bg-primary/90">Continuar como Invitado</button>
+                          <button onClick={() => setMode('guest')} className="w-full bg-primary text-white font-semibold py-2 px-4 rounded hover:bg-primary/90 transition-colors">
+                            Continuar como Invitado
+                          </button>
                         </div>
-                        <div className="border rounded-lg p-6 bg-white shadow-sm">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">¿Ya eres cliente?</h3>
-                          <p className="text-sm text-gray-600 mb-4">Inicia sesión con enlace mágico para autocompletar tus datos.</p>
-                          <button onClick={() => setMode('login')} className="w-full bg-accent text-white font-semibold py-2 px-4 rounded hover:bg-accent/90">Iniciar sesión</button>
+                        <div className="border rounded-lg p-6 bg-white shadow-sm hover:shadow-md transition-shadow">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">¿Quieres crear una cuenta o ya eres cliente?</h3>
+                          <p className="text-sm text-gray-600 mb-4">Accede de forma segura y ten tus datos siempre listos para tu próxima compra.</p>
+                          <button onClick={() => setMode('login')} className="w-full bg-accent text-white font-semibold py-2 px-4 rounded hover:bg-accent/90 transition-colors">
+                            Crear cuenta o Iniciar sesión
+                          </button>
                         </div>
                       </div>
                     )}
 
                     {mode === 'login' && (
-                      <div className="space-y-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Acceso con Enlace Mágico</h3>
+                      <div className="space-y-4 bg-white border rounded-lg p-6 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold text-gray-900">Acceso Seguro</h3>
+                          <button 
+                            onClick={() => setMode('choose')} 
+                            className="text-sm text-gray-500 hover:text-gray-700"
+                          >
+                            ← Volver
+                          </button>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          Introduce tu email y te enviaremos un acceso directo. Si ya eres cliente, tus datos se autorrellenarán automáticamente.
+                        </p>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Email</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                           <input
                             type="email"
                             value={loginEmail}
@@ -339,28 +425,108 @@ export default function CheckoutPage() {
                             className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
                             placeholder="tu@email.com"
                           />
+                          <p className="mt-2 text-xs text-gray-500 italic">
+                            💡 No necesitas contraseña. Te enviaremos un acceso seguro a tu correo para que no tengas que recordar nada.
+                          </p>
                         </div>
-                        <div className="flex items-center space-x-2">
+                        <div className="flex flex-col sm:flex-row gap-3">
                           <button
                             onClick={async () => {
-                              if (!loginEmail) return;
-                              setMagicSentTo(loginEmail);
+                              if (!loginEmail) {
+                                alert('Por favor, introduce tu email');
+                                return;
+                              }
+                              
+                              try {
+                                // Construir URL base sin duplicar /api
+                                const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+                                
+                                // Enviar email de acceso seguro
+                                const response = await fetch(`${API_BASE}/customers/send-access-link`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ email: loginEmail })
+                                });
+                                
+                                const data = await response.json();
+                                
+                                if (data.success) {
+                                  setAccessSentTo(loginEmail);
+                                  
+                                  // Si es un nuevo cliente, también registrarlo y enviar email de bienvenida
+                                  if (data.isNewCustomer) {
+                                    await fetch(`${API_BASE}/customers/register`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ 
+                                        email: loginEmail,
+                                        sendWelcome: true 
+                                      })
+                                    });
+                                  }
+                                } else {
+                                  alert('Error al enviar el email. Inténtalo de nuevo.');
+                                }
+                              } catch (error) {
+                                console.error('Error al enviar email de acceso:', error);
+                                alert('Error al enviar el email. Inténtalo de nuevo.');
+                              }
                             }}
-                            className="bg-accent text-white font-semibold py-2 px-4 rounded hover:bg-accent/90"
+                            className="flex-1 bg-accent text-white font-semibold py-2.5 px-4 rounded hover:bg-accent/90 transition-colors"
                           >
-                            Enviar enlace de acceso
+                            Recibir acceso por email
                           </button>
-                          <button onClick={() => setMode('guest')} className="text-sm text-gray-600 hover:text-gray-900">Continuar como invitado</button>
+                          <button 
+                            onClick={() => setMode('guest')} 
+                            className="text-sm text-gray-600 hover:text-gray-900 underline"
+                          >
+                            Continuar como invitado
+                          </button>
                         </div>
-                        {magicSentTo && (
-                          <div className="p-3 bg-green-50 border border-green-200 text-green-800 rounded">
-                            ✅ ¡Enviado! Revisa tu email ({magicSentTo}) y haz clic en el enlace para iniciar sesión y autocompletar tus datos.
+                        {accessSentTo && (
+                          <div className="p-4 bg-green-50 border-l-4 border-green-500 text-green-800 rounded-r">
+                            <p className="font-semibold flex items-center gap-2">
+                              <span className="text-xl">✅</span>
+                              ¡Hecho! Revisa tu bandeja de entrada
+                            </p>
+                            <p className="text-sm mt-1">
+                              Te hemos enviado un link a <strong>{accessSentTo}</strong> para identificarte en 1 minuto.
+                            </p>
+                            <p className="text-xs mt-2 text-green-700">
+                              💡 Si no lo ves, revisa tu carpeta de spam o correo no deseado.
+                            </p>
                           </div>
                         )}
                       </div>
                     )}
 
                     {mode === 'guest' && (
+                      <div>
+                        {/* ✅ Mensajes personalizados según el estado del usuario */}
+                        {userDataLoaded === 'with_data' && (
+                          <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r">
+                            <p className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+                              <span className="text-lg">✨</span>
+                              Hemos cargado tus datos guardados para tu comodidad
+                            </p>
+                            <p className="text-xs text-blue-700 mt-1">
+                              Puedes modificar cualquier campo si lo necesitas
+                            </p>
+                          </div>
+                        )}
+                        
+                        {userDataLoaded === 'without_data' && (
+                          <div className="mb-4 p-4 bg-green-50 border-l-4 border-green-500 rounded-r">
+                            <p className="text-sm font-semibold text-green-800 flex items-center gap-2">
+                              <span className="text-lg">✅</span>
+                              ¡Identificación correcta! Solo falta que nos indiques tus datos de entrega
+                            </p>
+                            <p className="text-xs text-green-700 mt-1">
+                              Guardaremos esta información para agilizar tu próxima compra
+                            </p>
+                          </div>
+                        )}
+                        
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Nombre*</label>
@@ -403,6 +569,7 @@ export default function CheckoutPage() {
                             placeholder="+34 600 123 456"
                           />
                         </div>
+                      </div>
                       </div>
                     )}
                   </div>

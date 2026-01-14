@@ -189,11 +189,18 @@ export interface FarmerApplication {
   city: string;
   province: string;
   description?: string;
+  farming_experience?: number;
+  hectares?: number;
+  website?: string;
+  social_media?: string;
   status: 'pending' | 'reviewing' | 'approved' | 'rejected';
   rejection_reason?: string | null;
   admin_notes?: string;
+  notes?: string;
   reviewed_by?: string;
   reviewed_at?: string;
+  approved_by?: string;
+  approved_at?: string;
   farmer_id?: string;
   created_at: string;
   updated_at: string;
@@ -269,15 +276,14 @@ export interface CreateFarmerRequest {
   website?: string;
 }
 
-// 8. APLICACIONES DE AGRICULTORES
-export interface FarmerApplication {
-  id: string;
+// Crear aplicación de agricultor
+export interface CreateFarmerApplicationRequest {
   first_name: string;
   last_name: string;
   email: string;
   phone: string;
   business_name?: string;
-  production_type: 'organic' | 'conventional' | 'integrated';
+  production_type: string;
   main_products: string;
   certifications?: string;
   address: string;
@@ -286,16 +292,9 @@ export interface FarmerApplication {
   province: string;
   farming_experience: number;
   hectares?: number;
-  description: string;
+  description?: string;
   website?: string;
   social_media?: string;
-  status: 'pending' | 'approved' | 'rejected';
-  rejection_reason?: string | null;
-  notes?: string;
-  approved_by?: string;
-  approved_at?: string;
-  created_at: string;
-  updated_at: string;
 }
 
 // Suscripción newsletter
