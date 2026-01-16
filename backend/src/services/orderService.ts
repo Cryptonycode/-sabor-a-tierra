@@ -119,13 +119,11 @@ export class OrderService {
         }
         discount_code_used = orderData.discountCode;
         discount_amount = Math.round((orderData.subtotal * validation.percentage) ) / 100; // porcentaje
-        // Recalcular totales
+        // Recalcular totales (IVA 4% ya incluido en precios)
         const newSubtotal = Math.max(0, orderData.subtotal - discount_amount);
         orderData.subtotal = newSubtotal;
-        // Mantener shipping_cost y recomputar tax (21%) sobre subtotal+shipping
-        const taxBase = newSubtotal + orderData.shipping_cost;
-        orderData.tax_amount = taxBase * 0.21;
-        orderData.total_amount = taxBase + orderData.tax_amount;
+        orderData.tax_amount = 0; // IVA 4% incluido en precios
+        orderData.total_amount = newSubtotal + orderData.shipping_cost;
       }
 
       // 1. Crear el pedido principal
@@ -151,7 +149,7 @@ export class OrderService {
           discount_code_used: discount_code_used,
           discount_amount: discount_amount,
           status: 'pending',
-          payment_status: orderData.payment_method === 'cash_on_delivery' ? 'pending' : 'paid',
+          payment_status: (orderData.payment_method === 'bizum' || orderData.payment_method === 'transferencia') ? 'pending' : 'paid',
           payment_method: orderData.payment_method,
           estimated_delivery_date: estimatedDeliveryDate
         }])

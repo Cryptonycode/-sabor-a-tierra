@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { OrderService } from '../services/orderService';
+import { sendOrderConfirmationEmail } from '../services/emailService';
 
 const router = Router();
 
@@ -23,8 +24,36 @@ router.post('/', async (req: Request, res: Response) => {
 
     const order = await OrderService.createOrder(orderData);
     
-    // Enviar email de confirmación (simulado)
-    console.log(`📧 Email de confirmación enviado a: ${orderData.customer_info.email}`);
+    // Enviar email de confirmación
+    try {
+      await sendOrderConfirmationEmail({
+        orderId: order.id,
+        customerName: `${orderData.customer_info.first_name} ${orderData.customer_info.last_name}`,
+        customerEmail: orderData.customer_info.email,
+        items: orderData.items.map((item: any) => ({
+          product_name: item.product_name || item.name || 'Producto',
+          variant_name: item.variant_name || item.variant || '',
+          quantity: item.quantity,
+          unit_price: item.unit_price || item.price || 0,
+          total_price: (item.unit_price || item.price || 0) * item.quantity,
+        })),
+        subtotal: orderData.subtotal || 0,
+        shipping_cost: orderData.shipping_cost || 0,
+        discount: orderData.discount || 0,
+        total: orderData.total_amount || 0,
+        payment_method: orderData.payment_method || 'bizum',
+        delivery_address: {
+          address: orderData.delivery_address.address,
+          city: orderData.delivery_address.city,
+          postal_code: orderData.delivery_address.postal_code,
+          province: orderData.delivery_address.province,
+        },
+      });
+      console.log(`✅ Email de confirmación enviado a: ${orderData.customer_info.email}`);
+    } catch (emailError) {
+      console.error('⚠️ Error al enviar email de confirmación:', emailError);
+      // No fallar el pedido si el email falla
+    }
     
     return res.status(201).json(order);
   } catch (error) {

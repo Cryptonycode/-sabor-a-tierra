@@ -7,6 +7,7 @@ export interface Product {
   imageUrl: string;
   unit: string;
   category?: string;
+  weight?: number; // Peso en kg para cálculo de envío
 }
 
 export interface CartItem extends Product {

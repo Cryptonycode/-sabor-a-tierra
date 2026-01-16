@@ -184,3 +184,165 @@ export class EmailService {
   }
 }
 
+export interface OrderConfirmationEmailData {
+  orderId: string;
+  customerName: string;
+  customerEmail: string;
+  items: Array<{
+    product_name: string;
+    variant_name?: string;
+    quantity: number;
+    unit_price: number;
+    total_price: number;
+  }>;
+  subtotal: number;
+  shipping_cost: number;
+  discount?: number;
+  total: number;
+  payment_method: string;
+  delivery_address: {
+    address: string;
+    city: string;
+    postal_code: string;
+    province: string;
+  };
+}
+
+/**
+ * Envía un email de confirmación de pedido
+ */
+export async function sendOrderConfirmationEmail(data: OrderConfirmationEmailData): Promise<void> {
+  const { 
+    orderId, 
+    customerName, 
+    customerEmail, 
+    items, 
+    subtotal, 
+    shipping_cost, 
+    discount = 0, 
+    total, 
+    payment_method,
+    delivery_address 
+  } = data;
+
+  const subject = `✅ Confirmación de Pedido #${orderId} - Sabor a Tierra`;
+
+  const paymentMethodText = payment_method === 'bizum' ? 'Bizum' : 
+                           payment_method === 'transferencia' ? 'Transferencia Bancaria' : 
+                           payment_method;
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #4CAF50; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background-color: #f9f9f9; padding: 30px; }
+          .order-item { background-color: white; padding: 15px; margin: 10px 0; border-radius: 5px; }
+          .total-section { background-color: white; padding: 20px; margin-top: 20px; border-radius: 5px; }
+          .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
+          .total-final { font-size: 20px; font-weight: bold; border-top: 2px solid #4CAF50; padding-top: 15px; margin-top: 10px; }
+          .payment-info { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
+          .footer { text-align: center; margin-top: 30px; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>¡Pedido Confirmado! ✅</h1>
+            <p style="margin: 10px 0 0 0;">Pedido #${orderId}</p>
+          </div>
+          <div class="content">
+            <p>Hola ${customerName},</p>
+            <p>¡Gracias por tu pedido! Hemos recibido tu solicitud correctamente.</p>
+            
+            <h3>Productos:</h3>
+            ${items.map(item => `
+              <div class="order-item">
+                <strong>${item.product_name}${item.variant_name ? ` - ${item.variant_name}` : ''}</strong><br>
+                Cantidad: ${item.quantity} × €${item.unit_price.toFixed(2)} = €${item.total_price.toFixed(2)}
+              </div>
+            `).join('')}
+            
+            <div class="total-section">
+              <div class="total-row">
+                <span>Subtotal:</span>
+                <span>€${subtotal.toFixed(2)}</span>
+              </div>
+              ${discount > 0 ? `
+              <div class="total-row" style="color: #4CAF50;">
+                <span>Descuento:</span>
+                <span>-€${discount.toFixed(2)}</span>
+              </div>
+              ` : ''}
+              <div class="total-row">
+                <span>Envío:</span>
+                <span>${shipping_cost === 0 ? 'Gratis' : `€${shipping_cost.toFixed(2)}`}</span>
+              </div>
+              <div class="total-row" style="font-size: 11px; color: #999; font-style: italic;">
+                <span>IVA 4% (incluido)</span>
+                <span></span>
+              </div>
+              <div class="total-row total-final">
+                <span>Total:</span>
+                <span>€${total.toFixed(2)}</span>
+              </div>
+            </div>
+            
+            <div class="payment-info">
+              <strong>⚠️ Método de pago: ${paymentMethodText}</strong><br>
+              ${payment_method === 'bizum' ? `
+                <p style="margin: 10px 0;">Por favor, realiza el pago Bizum al número: <strong>600 000 000</strong></p>
+                <p style="margin: 10px 0;">Concepto: <strong>${orderId}</strong></p>
+              ` : payment_method === 'transferencia' ? `
+                <p style="margin: 10px 0;">Por favor, realiza la transferencia a nuestra cuenta bancaria.</p>
+                <p style="margin: 10px 0;">Concepto: <strong>${orderId}</strong></p>
+              ` : ''}
+              <p style="margin: 10px 0; font-size: 14px;">
+                <strong>Importante:</strong> Envía una captura del comprobante de pago por WhatsApp para procesar tu pedido.
+              </p>
+            </div>
+            
+            <h3>Dirección de entrega:</h3>
+            <div class="order-item">
+              ${delivery_address.address}<br>
+              ${delivery_address.city}, ${delivery_address.postal_code}<br>
+              ${delivery_address.province}
+            </div>
+            
+            <p style="margin-top: 30px;">Tu pedido será procesado en un plazo máximo de 24 horas hábiles tras verificar el pago.</p>
+            
+            <p>Si tienes alguna pregunta, no dudes en contactarnos.</p>
+            
+            <p>¡Gracias por apoyar a los agricultores locales!</p>
+            
+            <p>Saludos cordiales,<br><strong>El equipo de Sabor a Tierra</strong></p>
+          </div>
+          <div class="footer">
+            <p>Este es un correo automático, por favor no respondas a este mensaje.</p>
+            <p>&copy; ${new Date().getFullYear()} Sabor a Tierra. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  try {
+    console.log('📧 Email de confirmación de pedido preparado:');
+    console.log('Para:', customerEmail);
+    console.log('Asunto:', subject);
+    console.log('Pedido ID:', orderId);
+    console.log('Total:', total);
+    
+    // TODO: Implementar integración con Resend u otro servicio
+    // Por ahora, solo logueamos
+    
+  } catch (error) {
+    console.error('Error al enviar email de confirmación de pedido:', error);
+    // No lanzar error para no bloquear la creación del pedido
+  }
+}
+

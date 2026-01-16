@@ -19,7 +19,7 @@ interface CheckoutData {
     province: string;
     delivery_notes?: string;
   };
-  payment_method: 'card' | 'paypal' | 'transfer' | 'cash_on_delivery';
+  payment_method: 'bizum' | 'transferencia';
   marketing_consent: boolean;
 }
 
@@ -49,7 +49,7 @@ export default function CheckoutPage() {
       province: '',
       delivery_notes: '',
     },
-    payment_method: 'card',
+    payment_method: 'bizum',
     marketing_consent: false,
   });
 
@@ -124,8 +124,28 @@ export default function CheckoutPage() {
   };
 
   const calculateShipping = () => {
-    // Lógica simple de envío
-    return cart.totalPrice > 50 ? 0 : 4.99;
+    // Calcular peso total del carrito (kg)
+    const totalWeight = cart.items.reduce((total, item) => {
+      const itemWeight = item.weight || 0;
+      return total + (itemWeight * item.quantity);
+    }, 0);
+
+    // Tabla de precios según peso (sin envío gratis por subtotal)
+    // 0-4 kg: 3,90 €
+    // 4-10 kg: 4,45 €
+    // 10-15 kg: 5,90 €
+    // Más de 15 kg: 10,95 € (sin límite de peso)
+    
+    if (totalWeight <= 4) {
+      return 3.90;
+    } else if (totalWeight <= 10) {
+      return 4.45;
+    } else if (totalWeight <= 15) {
+      return 5.90;
+    } else {
+      // Más de 15kg: tarifa plana de 10,95€ sin límite de peso
+      return 10.95;
+    }
   };
 
   const getDiscountAmount = () => {
@@ -134,14 +154,9 @@ export default function CheckoutPage() {
     return Math.min(amount, cart.totalPrice);
   };
 
-  const calculateTax = () => {
-    // IVA del 21%
-    const taxableBase = Math.max(0, (cart.totalPrice - getDiscountAmount()) + calculateShipping());
-    return taxableBase * 0.21;
-  };
-
   const calculateTotal = () => {
-    return Math.max(0, cart.totalPrice - getDiscountAmount()) + calculateShipping() + calculateTax();
+    // Total = Subtotal - Descuento + Envío (IVA 4% ya incluido en precios)
+    return Math.max(0, cart.totalPrice - getDiscountAmount()) + calculateShipping();
   };
 
   const handleApplyDiscount = async () => {
@@ -178,7 +193,7 @@ export default function CheckoutPage() {
         payment_method: formData.payment_method,
         subtotal: cart.totalPrice,
         shipping_cost: calculateShipping(),
-        tax_amount: calculateTax(),
+        tax_amount: 0, // IVA 4% incluido en precios
         total_amount: calculateTotal(),
         marketing_consent: formData.marketing_consent,
         discountCode: appliedDiscount?.code
@@ -420,10 +435,8 @@ export default function CheckoutPage() {
                     <h2 className="text-xl font-semibold text-gray-900">💳 Método de Pago</h2>
                     <div className="space-y-4">
                       {[
-                        { value: 'card', label: 'Tarjeta de Crédito/Débito', icon: '💳', description: 'Visa, Mastercard, American Express' },
-                        { value: 'paypal', label: 'PayPal', icon: '🔵', description: 'Paga de forma segura con PayPal' },
-                        { value: 'transfer', label: 'Transferencia Bancaria', icon: '🏦', description: 'Transferencia directa a nuestra cuenta' },
-                        { value: 'cash_on_delivery', label: 'Pago Contra Reembolso', icon: '💰', description: 'Paga al recibir tu pedido (+2€)' }
+                        { value: 'bizum', label: 'Bizum', icon: '📱', description: 'Pago instantáneo con tu móvil' },
+                        { value: 'transferencia', label: 'Transferencia Bancaria', icon: '🏦', description: 'Transferencia directa a nuestra cuenta' }
                       ].map((method) => (
                         <div
                           key={method.value}
@@ -506,10 +519,8 @@ export default function CheckoutPage() {
                     <div className="bg-gray-50 rounded-lg p-4">
                       <h3 className="font-medium text-gray-900 mb-2">Método de Pago</h3>
                       <p className="text-sm text-gray-600">
-                        {formData.payment_method === 'card' && '💳 Tarjeta de Crédito/Débito'}
-                        {formData.payment_method === 'paypal' && '🔵 PayPal'}
-                        {formData.payment_method === 'transfer' && '🏦 Transferencia Bancaria'}
-                        {formData.payment_method === 'cash_on_delivery' && '💰 Pago Contra Reembolso'}
+                        {formData.payment_method === 'bizum' && '📱 Bizum'}
+                        {formData.payment_method === 'transferencia' && '🏦 Transferencia Bancaria'}
                       </p>
                     </div>
 
@@ -618,19 +629,13 @@ export default function CheckoutPage() {
                     <span>Envío:</span>
                     <span>{calculateShipping() === 0 ? 'Gratis' : `€${calculateShipping().toFixed(2)}`}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span>IVA (21%):</span>
-                    <span>€{calculateTax().toFixed(2)}</span>
+                  <div className="flex justify-between text-xs text-gray-500 italic">
+                    <span>IVA 4% (incluido)</span>
+                    <span></span>
                   </div>
-                  {formData.payment_method === 'cash_on_delivery' && (
-                    <div className="flex justify-between text-sm">
-                      <span>Gastos contrareembolso:</span>
-                      <span>€2.00</span>
-                    </div>
-                  )}
                   <div className="flex justify-between text-lg font-semibold border-t pt-2">
                     <span>Total:</span>
-                    <span>€{(calculateTotal() + (formData.payment_method === 'cash_on_delivery' ? 2 : 0)).toFixed(2)}</span>
+                    <span>€{calculateTotal().toFixed(2)}</span>
                   </div>
                 </div>
 

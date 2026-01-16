@@ -24,7 +24,24 @@ export default function CartPage() {
 
   // Calcular descuentos y envío
   const subtotal = cart.totalPrice;
-  const shippingCost = subtotal >= 50 ? 0 : 5.99;
+  
+  // Calcular envío basado en peso total
+  const totalWeight = cart.items.reduce((total, item) => {
+    const itemWeight = item.weight || 0;
+    return total + (itemWeight * item.quantity);
+  }, 0);
+  
+  // Tabla de precios según peso
+  // 0-4 kg: 3,90 € | 4-10 kg: 4,45 € | 10-15 kg: 5,90 € | +15 kg: 10,95 €
+  let shippingCost = 3.90;
+  if (totalWeight > 15) {
+    shippingCost = 10.95;
+  } else if (totalWeight > 10) {
+    shippingCost = 5.90;
+  } else if (totalWeight > 4) {
+    shippingCost = 4.45;
+  }
+  
   const discount = subtotal >= 100 ? subtotal * 0.05 : 0; // 5% descuento si > 100€
   const total = subtotal + shippingCost - discount;
 

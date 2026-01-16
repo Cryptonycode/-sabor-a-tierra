@@ -96,6 +96,7 @@ export default function ProductPage() {
       imageUrl: product.main_image_url,
       unit: product.unit,
       category: product.category,
+      weight: currentVariant.weight || 0, // Peso de la variante en kg
     } as any;
 
     addToCart(productToAdd, quantity);
