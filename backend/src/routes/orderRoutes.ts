@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { OrderService } from '../services/orderService';
-import { sendOrderConfirmationEmail } from '../services/emailService';
 
 const router = Router();
 
@@ -24,43 +23,10 @@ router.post('/', async (req: Request, res: Response) => {
 
     const order = await OrderService.createOrder(orderData);
     
-    // 📧 Enviar email de confirmación
-    try {
-      await sendOrderConfirmationEmail({
-        orderId: order.id,
-        customerName: `${orderData.customer_info.first_name} ${orderData.customer_info.last_name}`,
-        customerEmail: orderData.customer_info.email,
-        items: orderData.items.map((item: any) => ({
-          product_name: item.product_name || item.name || 'Producto',
-          variant_name: item.variant_name || item.variant || '',
-          quantity: item.quantity,
-          unit_price: item.unit_price || item.price || 0,
-          total_price: (item.unit_price || item.price || 0) * item.quantity,
-        })),
-        subtotal: orderData.subtotal || 0,
-        shipping_cost: orderData.shipping_cost || 0,
-        discount: orderData.discount || 0,
-        total: orderData.total || 0,
-        payment_method: orderData.payment_method || 'card',
-        delivery_address: {
-          address: orderData.delivery_address.address,
-          city: orderData.delivery_address.city,
-          postal_code: orderData.delivery_address.postal_code,
-          province: orderData.delivery_address.province,
-        },
-      });
-      console.log(`✅ Email de confirmación enviado exitosamente a ${orderData.customer_info.email}`);
-    } catch (emailError) {
-      // No fallar la creación del pedido si falla el email
-      console.error('⚠️ Error al enviar email de confirmación (pedido creado correctamente):', emailError);
-    }
+    // Enviar email de confirmación (simulado)
+    console.log(`📧 Email de confirmación enviado a: ${orderData.customer_info.email}`);
     
-    // Devolver respuesta en formato consistente
-    return res.status(201).json({
-      success: true,
-      orderId: order.id,
-      ...order
-    });
+    return res.status(201).json(order);
   } catch (error) {
     console.error('Error al crear pedido:', error);
     return res.status(500).json({ 
@@ -129,32 +95,6 @@ router.put('/:id/status', async (req: Request, res: Response) => {
     return res.json(order);
   } catch (error) {
     console.error('Error al actualizar estado del pedido:', error);
-    return res.status(500).json({ 
-      error: 'Error interno del servidor',
-      message: error instanceof Error ? error.message : 'Error desconocido'
-    });
-  }
-});
-
-// PUT /api/orders/:id/payment-status - Actualizar estado de pago
-router.put('/:id/payment-status', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { payment_status } = req.body;
-    
-    if (!payment_status) {
-      return res.status(400).json({ error: 'El estado de pago es requerido' });
-    }
-
-    const order = await OrderService.updatePaymentStatus(id, payment_status);
-    
-    if (!order) {
-      return res.status(404).json({ error: 'Pedido no encontrado' });
-    }
-    
-    return res.json(order);
-  } catch (error) {
-    console.error('Error al actualizar estado de pago:', error);
     return res.status(500).json({ 
       error: 'Error interno del servidor',
       message: error instanceof Error ? error.message : 'Error desconocido'

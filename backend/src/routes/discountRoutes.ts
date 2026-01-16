@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import DiscountService from '../services/discountService';
+import { RegistrationService } from '../services/registrationService';
 import { supabaseAdmin } from '../config/supabase';
 
 const router = Router();
@@ -12,33 +13,45 @@ router.post('/generate-first-purchase', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Email requerido' });
     }
 
-    // (Opcional) Verificar si ya existe un código para este email activo
-    const { data: existing } = await supabaseAdmin
-      .from('discount_codes')
-      .select('code')
-      .eq('customer_email', email)
-      .eq('is_active', true)
-      .lt('times_used', 1)
-      .maybeSingle();
+    // Usar el servicio unificado de registro
+    // Esto manejará la creación del cliente, newsletter, cupón y envío de email
+    const result = await RegistrationService.subscribeToNewsletterOnly({
+      email
+    });
 
-    if (existing?.code) {
-      return res.json({ success: true, discountCode: existing.code });
+    if (result.status === 'already_exists') {
+      // El usuario ya existe, verificar si tiene un cupón BIENVENIDA10 activo sin usar
+      const { data: existingCode } = await supabaseAdmin
+        .from('discount_codes')
+        .select('code')
+        .eq('customer_email', email)
+        .eq('is_active', true)
+        .eq('times_used', 0)
+        .ilike('code', 'BIENVENIDA10%')
+        .maybeSingle();
+
+      if (existingCode) {
+        // Tiene un cupón activo sin usar
+        return res.json({ 
+          success: true, 
+          discountCode: existingCode.code,
+          message: 'Ya tienes un cupón de bienvenida activo'
+        });
+      } else {
+        // Ya existe pero no tiene cupón disponible
+        return res.json({ 
+          success: false, 
+          message: 'Este email ya está registrado y el cupón de bienvenida ya fue utilizado'
+        });
+      }
     }
 
-    // (Opcional) Añadir al newsletter si no existe
-    const { data: sub } = await supabaseAdmin
-      .from('newsletter_subscriptions')
-      .select('id, is_active')
-      .eq('email', email)
-      .maybeSingle();
-    if (!sub) {
-      await supabaseAdmin
-        .from('newsletter_subscriptions')
-        .insert([{ email, is_active: true, confirmed: false }]);
-    }
-
-    const code = await DiscountService.createDiscountCode(email, 10);
-    return res.json({ success: true, discountCode: code });
+    // Nuevo registro - cupón creado y email enviado
+    return res.json({ 
+      success: true, 
+      discountCode: result.discountCode,
+      message: result.message
+    });
   } catch (error) {
     console.error('Error generando código de descuento:', error);
     return res.status(500).json({ success: false, message: 'Error interno del servidor' });

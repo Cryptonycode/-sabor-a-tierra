@@ -18,7 +18,7 @@ interface Order {
   tax_amount: number;
   shipping_cost: number;
   order_status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-  payment_status: 'pending' | 'awaiting_payment' | 'pending_payment' | 'paid' | 'failed' | 'refunded';
+  payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
   payment_method?: string;
   tracking_number?: string;
   estimated_delivery?: string;
@@ -66,8 +66,6 @@ export default function OrdersManagementPage() {
 
   const paymentStatuses = [
     { value: 'pending', label: 'Pendiente', color: 'bg-yellow-100 text-yellow-800' },
-    { value: 'awaiting_payment', label: 'Esperando Pago', color: 'bg-orange-100 text-orange-800' },
-    { value: 'pending_payment', label: 'Pendiente de Pago', color: 'bg-orange-100 text-orange-800' },
     { value: 'paid', label: 'Pagado', color: 'bg-green-100 text-green-800' },
     { value: 'failed', label: 'Fallido', color: 'bg-red-100 text-red-800' },
     { value: 'refunded', label: 'Reembolsado', color: 'bg-gray-100 text-gray-800' }
@@ -174,29 +172,6 @@ export default function OrdersManagementPage() {
     } catch (error) {
       console.error('Error updating order status:', error);
       alert('Error al actualizar el estado del pedido.');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const updatePaymentStatus = async (orderId: string, newPaymentStatus: string) => {
-    try {
-      setActionLoading(orderId);
-      
-      await apiClient.put(`/orders/${orderId}/payment-status`, {
-        payment_status: newPaymentStatus
-      });
-
-      await fetchOrders();
-      if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder({ ...selectedOrder, payment_status: newPaymentStatus as any });
-      }
-      
-      alert(`Estado de pago actualizado a "${newPaymentStatus}". Se ha notificado al cliente.`);
-      
-    } catch (error) {
-      console.error('Error updating payment status:', error);
-      alert('Error al actualizar el estado de pago.');
     } finally {
       setActionLoading(null);
     }
@@ -363,12 +338,7 @@ export default function OrdersManagementPage() {
                     {getStatusBadge(order.order_status, 'order')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      {getStatusBadge(order.payment_status, 'payment')}
-                      {(order.payment_status === 'awaiting_payment' || order.payment_status === 'pending_payment') && (
-                        <span className="text-orange-500 text-xs">⚠️</span>
-                      )}
-                    </div>
+                    {getStatusBadge(order.payment_status, 'payment')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(order.created_at).toLocaleDateString('es-ES')}
@@ -501,48 +471,15 @@ export default function OrdersManagementPage() {
                       <span>€{selectedOrder.shipping_cost.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>IVA (4%):</span>
-                      <span>incluido</span>
+                      <span>Impuestos:</span>
+                      <span>€{selectedOrder.tax_amount.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between font-semibold text-base border-t pt-2">
                       <span>Total:</span>
                       <span>€{selectedOrder.total_amount.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between pt-2 border-t text-xs">
-                      <span>Método de Pago:</span>
-                      <span className="font-medium">
-                        {selectedOrder.payment_method === 'card' && '💳 Tarjeta'}
-                        {(selectedOrder.payment_method === 'transferencia' || selectedOrder.payment_method === 'transfer') && '🏦 Transferencia'}
-                        {selectedOrder.payment_method === 'bizum' && '📱 Bizum'}
-                        {!['card', 'transferencia', 'transfer', 'bizum'].includes(selectedOrder.payment_method || '') && selectedOrder.payment_method}
-                      </span>
-                    </div>
                   </div>
                 </div>
-
-                {/* Payment Status Updates */}
-                {(selectedOrder.payment_method === 'transferencia' || selectedOrder.payment_method === 'transfer' || selectedOrder.payment_method === 'bizum') && 
-                 (selectedOrder.payment_status === 'awaiting_payment' || selectedOrder.payment_status === 'pending_payment') && (
-                  <div className="bg-orange-50 border-2 border-orange-300 p-4 rounded-lg">
-                    <h4 className="font-semibold text-orange-800 mb-3 flex items-center gap-2">
-                      ⚠️ Pago Pendiente
-                    </h4>
-                    <p className="text-sm text-orange-700 mb-3">
-                      Este pedido está esperando la confirmación de pago por {(selectedOrder.payment_method === 'transferencia' || selectedOrder.payment_method === 'transfer') ? 'Transferencia Bancaria' : 'Bizum'}.
-                    </p>
-                    <button
-                      onClick={() => {
-                        if (confirm('¿Confirmas que has recibido el pago?')) {
-                          updatePaymentStatus(selectedOrder.id, 'paid');
-                        }
-                      }}
-                      disabled={actionLoading === selectedOrder.id}
-                      className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:opacity-50 font-medium"
-                    >
-                      ✅ Confirmar Pago Recibido
-                    </button>
-                  </div>
-                )}
 
                 {/* Status Actions */}
                 <div className="bg-white border rounded-lg p-4">

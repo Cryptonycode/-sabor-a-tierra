@@ -45,10 +45,10 @@ export class DiscountService {
   }
 
   // Valida un código de descuento
-  static async validateDiscountCode(code: string): Promise<{ isValid: boolean; percentage: number | null; error?: string }> {
+  static async validateDiscountCode(code: string, customerEmail?: string): Promise<{ isValid: boolean; percentage: number | null; error?: string }> {
     const { data, error } = await supabaseAdmin
       .from('discount_codes')
-      .select('code, discount_percentage, is_active, max_uses, times_used, expires_at')
+      .select('code, discount_percentage, is_active, max_uses, times_used, expires_at, customer_email')
       .eq('code', code)
       .maybeSingle();
 
@@ -66,6 +66,19 @@ export class DiscountService {
     }
     if (data.expires_at && new Date(data.expires_at) < new Date()) {
       return { isValid: false, percentage: null, error: 'Código expirado' };
+    }
+
+    // Verificación especial para cupones BIENVENIDA10
+    if (code.startsWith('BIENVENIDA10')) {
+      // Verificar que el email coincida con el del cupón (si está disponible)
+      if (customerEmail && data.customer_email && data.customer_email !== customerEmail) {
+        return { isValid: false, percentage: null, error: 'Este cupón está asociado a otro email' };
+      }
+      
+      // Asegurarse de que sea de un solo uso
+      if (data.times_used > 0) {
+        return { isValid: false, percentage: null, error: 'El cupón de bienvenida ya ha sido utilizado' };
+      }
     }
 
     return { isValid: true, percentage: data.discount_percentage };

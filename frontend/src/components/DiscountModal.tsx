@@ -31,7 +31,17 @@ export default function DiscountModal({ isOpen, onClose, onSubmitSuccess }: Disc
       const res: any = await apiClient.post('/discounts/generate-first-purchase', { email });
       if (res?.success) {
         setSuccessMsg('¡Código enviado a tu email!');
-        onSubmitSuccess();
+        
+        // Marcar en localStorage que el usuario se registró y reclamó el descuento
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('userRegistered', 'true');
+          localStorage.setItem('discountClaimed', 'true');
+        }
+        
+        // Esperar un momento para que el usuario vea el mensaje
+        setTimeout(() => {
+          onSubmitSuccess();
+        }, 1500);
       } else {
         setError(res?.message || 'No se pudo generar el código.');
       }
@@ -65,6 +75,7 @@ export default function DiscountModal({ isOpen, onClose, onSubmitSuccess }: Disc
           placeholder="tu@email.com"
         />
         {error && <div className="mb-3 text-sm text-red-600">{error}</div>}
+        {successMsg && <div className="mb-3 text-sm text-green-600">{successMsg}</div>}
 
         <button
           onClick={handleSubmit}

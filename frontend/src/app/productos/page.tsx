@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import ProductCard from '@/components/ProductCard';
 import Footer from '@/components/Footer';
 import { useProducts } from '@/hooks/useProducts';
@@ -9,10 +9,7 @@ import FarmerRegistrationModal from '@/components/FarmerRegistrationModal';
 const categories = [
   { id: 'all', name: 'Todos', emoji: '🥗' },
   { id: 'vegetables', name: 'Verduras y Hortalizas', emoji: '🥬' },
-  { id: 'fruits', name: 'Frutas', emoji: '🍎' },
-  { id: 'oils', name: 'Aceites y Conservas', emoji: '🫒' },
-  { id: 'dairy', name: 'Lácteos', emoji: '🧀' },
-  { id: 'grains', name: 'Cereales y Legumbres', emoji: '🌾' },
+  { id: 'fruits', name: 'Frutas', emoji: '🥑' },
 ];
 
 export default function ProductsPage() {
@@ -22,11 +19,6 @@ export default function ProductsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { products: allProducts, loading, error } = useProducts();
-
-  // Scroll al inicio al montar el componente
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
 
   const filteredProducts = useMemo(() => {
     if (!allProducts) return [];
@@ -45,8 +37,11 @@ export default function ProductsPage() {
       );
     }
 
+    // Asegurar que filtered siempre sea un array antes de ordenar
+    const productsToSort = Array.isArray(filtered) ? filtered : [];
+
     // Ordenar
-    filtered.sort((a, b) => {
+    productsToSort.sort((a, b) => {
       if (sortBy === 'name') {
         return a.name.localeCompare(b.name);
       } else if (sortBy === 'price-low') {
@@ -57,7 +52,7 @@ export default function ProductsPage() {
       return 0;
     });
 
-    return filtered;
+    return productsToSort;
   }, [allProducts, selectedCategory, searchTerm, sortBy]);
 
   // Loading state
@@ -92,22 +87,23 @@ export default function ProductsPage() {
   return (
     <>
       <main className="min-h-screen bg-gray-50">
-        {/* Header Section - Compactado para mejor "above the fold" */}
-        <section className="bg-primary text-white py-8">
+        {/* Header Section */}
+        <section className="bg-primary text-white py-16">
           <div className="container mx-auto px-4">
-            <h1 className="text-3xl md:text-4xl font-bold mb-2">
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">
               Nuestros Productos
             </h1>
-            <p className="text-base md:text-lg max-w-2xl">
-              Productos frescos del campo a tu mesa
+            <p className="text-xl max-w-2xl">
+              Descubre nuestra amplia selección de productos frescos y de temporada, 
+              directamente del campo a tu mesa.
             </p>
           </div>
         </section>
 
-        {/* Filters Section - Compactado */}
-        <section className="bg-white shadow-sm py-4">
+        {/* Filters Section */}
+        <section className="bg-white shadow-sm py-6">
           <div className="container mx-auto px-4">
-            <div className="space-y-3">
+            <div className="space-y-4">
               {/* Search */}
               <div className="w-full">
                 <input
@@ -154,8 +150,8 @@ export default function ProductsPage() {
           </div>
         </section>
 
-        {/* Products Grid - Reducido padding superior */}
-        <section className="py-6">
+        {/* Products Grid */}
+        <section className="py-12">
           <div className="container mx-auto px-4">
             {filteredProducts.length === 0 ? (
               <div className="text-center py-12">

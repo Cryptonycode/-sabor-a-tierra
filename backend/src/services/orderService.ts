@@ -1,13 +1,11 @@
 import { supabaseAdmin } from '../config/supabase';
 import { v4 as uuidv4 } from 'uuid';
-import { calculateShippingByWeight, exceedsWeightLimit } from '../utils/shipping';
 
 export interface CreateOrderData {
   items: Array<{
     product_id: string;
     quantity: number;
     unit_price: number;
-    weight?: number;
   }>;
   customer_info: {
     first_name: string;
@@ -27,7 +25,6 @@ export interface CreateOrderData {
   shipping_cost: number;
   tax_amount: number;
   total_amount: number;
-  total_weight?: number;
   marketing_consent: boolean;
   discountCode?: string;
 }
@@ -105,23 +102,6 @@ export class OrderService {
     const estimatedDeliveryDate = this.calculateEstimatedDelivery();
 
     try {
-      // Validar peso total del pedido
-      const totalWeight = orderData.total_weight || 0;
-      if (exceedsWeightLimit(totalWeight)) {
-        throw new Error('El peso total del pedido excede el límite de 20kg');
-      }
-
-      // Recalcular shipping_cost basado en peso
-      let shippingCost = orderData.shipping_cost;
-      if (totalWeight > 0) {
-        try {
-          shippingCost = calculateShippingByWeight(totalWeight);
-        } catch (error) {
-          console.error('Error al calcular envío por peso:', error);
-          throw new Error('Error al calcular el costo de envío basado en el peso');
-        }
-      }
-
       // Obtener o crear el cliente y recuperar su ID
       const customerId = await this.findOrCreateCustomerId(
         orderData.customer_info,
@@ -142,13 +122,10 @@ export class OrderService {
         // Recalcular totales
         const newSubtotal = Math.max(0, orderData.subtotal - discount_amount);
         orderData.subtotal = newSubtotal;
-        // Los precios ya incluyen IVA, solo sumar subtotal + shipping
-        orderData.tax_amount = 0; // IVA incluido en los precios
-        orderData.total_amount = newSubtotal + shippingCost;
-      } else {
-        // Sin descuento, recalcular total con shipping actualizado
-        orderData.tax_amount = 0; // IVA incluido en los precios
-        orderData.total_amount = orderData.subtotal + shippingCost;
+        // Mantener shipping_cost y recomputar tax (21%) sobre subtotal+shipping
+        const taxBase = newSubtotal + orderData.shipping_cost;
+        orderData.tax_amount = taxBase * 0.21;
+        orderData.total_amount = taxBase + orderData.tax_amount;
       }
 
       // 1. Crear el pedido principal
@@ -168,16 +145,13 @@ export class OrderService {
           shipping_province: orderData.delivery_address.province,
           shipping_notes: orderData.delivery_address.delivery_notes,
           subtotal: orderData.subtotal,
-          shipping_cost: shippingCost,
+          shipping_cost: orderData.shipping_cost,
           tax_amount: orderData.tax_amount,
           total_amount: orderData.total_amount,
           discount_code_used: discount_code_used,
           discount_amount: discount_amount,
           status: 'pending',
-          // Lógica de payment_status según método de pago
-          payment_status: ['transferencia', 'bizum'].includes(orderData.payment_method) 
-            ? 'awaiting_payment' 
-            : 'paid',
+          payment_status: orderData.payment_method === 'cash_on_delivery' ? 'pending' : 'paid',
           payment_method: orderData.payment_method,
           estimated_delivery_date: estimatedDeliveryDate
         }])
@@ -189,7 +163,6 @@ export class OrderService {
       }
 
       // 2. Crear los items del pedido
-      // IMPORTANTE: Los precios y pesos vienen de las VARIANTES seleccionadas por el cliente
       const orderItems = [];
       for (const item of orderData.items) {
         // Obtener información del producto
@@ -212,8 +185,6 @@ export class OrderService {
           `${farmer?.first_name} ${farmer?.last_name}` || 
           'Agricultor no especificado';
 
-        // El precio unitario SIEMPRE viene de la variante seleccionada (item.unit_price)
-        // NO usamos product.price ya que es solo informativo
         const orderItem = {
           id: uuidv4(),
           order_id: orderId,
@@ -222,7 +193,7 @@ export class OrderService {
           product_image: product.main_image_url,
           farmer_name: farmerName,
           quantity: item.quantity,
-          unit_price: item.unit_price, // Precio de la variante
+          unit_price: item.unit_price,
           total_price: item.quantity * item.unit_price
         };
 
@@ -240,13 +211,8 @@ export class OrderService {
         }
       }
 
-      // 3. Crear entrada en timeline (no crítico, no abortar si falla)
-      try {
-        await this.addTimelineEntry(orderId, 'pending', 'Pedido recibido y en proceso de confirmación');
-      } catch (timelineError) {
-        console.warn('Error al crear timeline (no crítico):', timelineError);
-        // Continuar aunque falle el timeline
-      }
+      // 3. Crear entrada en timeline
+      await this.addTimelineEntry(orderId, 'pending', 'Pedido recibido y en proceso de confirmación');
 
       // 4. Marcar código como usado si corresponde
       if (discount_code_used) {
@@ -254,16 +220,13 @@ export class OrderService {
         await DiscountService.markCodeAsUsed(discount_code_used, orderId);
       }
 
-      // Devolver el pedido completo con items
-      const finalOrder = await this.getOrderById(orderId) as Order;
-      
-      // Asegurar que el ID esté presente en la respuesta
-      if (!finalOrder || !finalOrder.id) {
-        console.error('Error: El pedido no tiene ID después de la creación');
-        throw new Error('Error al obtener el pedido creado');
+      // 5. Actualizar stock de productos (simplificado)
+      for (const item of orderData.items) {
+        await this.updateProductStock(item.product_id, item.quantity);
       }
-      
-      return finalOrder;
+
+      // Devolver el pedido completo con items
+      return await this.getOrderById(orderId) as Order;
 
     } catch (error) {
       console.error('Error en createOrder:', error);
@@ -423,35 +386,6 @@ export class OrderService {
     }
   }
 
-  // Actualizar estado de pago
-  static async updatePaymentStatus(orderId: string, newPaymentStatus: string): Promise<Order> {
-    try {
-      // Actualizar el estado de pago
-      const { data: order, error: updateError } = await supabaseAdmin
-        .from('orders')
-        .update({ 
-          payment_status: newPaymentStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', orderId)
-        .select()
-        .single();
-
-      if (updateError) {
-        throw new Error(`Error al actualizar estado de pago: ${updateError.message}`);
-      }
-
-      // Añadir entrada al timeline
-      const statusLabel = newPaymentStatus === 'paid' ? 'Pago Confirmado' : `Estado de pago: ${newPaymentStatus}`;
-      await this.addTimelineEntry(orderId, statusLabel, `Estado de pago actualizado a ${newPaymentStatus}`, 'admin');
-
-      return await this.getOrderById(orderId) as Order;
-    } catch (error) {
-      console.error('Error al actualizar estado de pago:', error);
-      throw error;
-    }
-  }
-
   // Cancelar pedido
   static async cancelOrder(orderId: string, reason?: string, cancelledBy?: string): Promise<Order> {
     try {
@@ -471,6 +405,14 @@ export class OrderService {
 
       // Añadir entrada al timeline
       await this.addTimelineEntry(orderId, 'cancelled', reason || 'Pedido cancelado', cancelledBy);
+
+      // Restaurar stock (simplificado)
+      const orderDetails = await this.getOrderById(orderId);
+      if (orderDetails?.items) {
+        for (const item of orderDetails.items) {
+          await this.updateProductStock(item.product_id, -item.quantity); // Restaurar stock
+        }
+      }
 
       return await this.getOrderById(orderId) as Order;
     } catch (error) {
@@ -638,4 +580,36 @@ export class OrderService {
     }
   }
 
+  private static async updateProductStock(productId: string, quantitySold: number): Promise<void> {
+    try {
+      // Obtener stock actual
+      const { data: product, error: getError } = await supabaseAdmin
+        .from('products')
+        .select('stock_quantity')
+        .eq('id', productId)
+        .single();
+
+      if (getError || !product) {
+        console.warn(`Producto no encontrado para actualizar stock: ${productId}`);
+        return;
+      }
+
+      // Actualizar stock
+      const newStock = Math.max(0, product.stock_quantity - quantitySold);
+      
+      const { error: updateError } = await supabaseAdmin
+        .from('products')
+        .update({ 
+          stock_quantity: newStock,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', productId);
+
+      if (updateError) {
+        console.warn('Error al actualizar stock:', updateError.message);
+      }
+    } catch (error) {
+      console.warn('Error al actualizar stock del producto:', error);
+    }
+  }
 }

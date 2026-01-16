@@ -50,7 +50,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       name: 'Inventario', 
       href: '/admin/inventario', 
       icon: '📦',
-      description: 'Gestión de productos'
+      description: 'Control de stock'
     },
     { 
       name: 'Devoluciones', 

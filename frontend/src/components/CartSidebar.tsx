@@ -190,14 +190,9 @@ export default function CartSidebar() {
               </div>
             </div>
 
-            {/* Info de peso y envío */}
-            <div className="text-center text-sm text-gray-600 pt-2 border-t space-y-1">
-              <div>📦 Peso total: {cart.totalWeight?.toFixed(2) || '0.00'} kg</div>
-              {cart.totalWeight > 20 && (
-                <div className="text-green-700 text-xs bg-green-50 p-2 rounded">
-                  💼 Pedidos grandes: <a href="https://wa.me/34XXXXXXXXX" target="_blank" rel="noopener noreferrer" className="underline font-semibold">WhatsApp</a>
-                </div>
-              )}
+            {/* Envío gratis */}
+            <div className="text-center text-sm text-gray-600 pt-2 border-t">
+              🚚 Envío gratis en pedidos superiores a 50€
             </div>
           </div>
         )}

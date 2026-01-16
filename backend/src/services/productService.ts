@@ -2,34 +2,18 @@ import { supabaseAdmin } from '../config/supabase';
 import { Product, CreateProductRequest, ProductWithFarmer, ProductWithVariants } from '../types/database';
 
 export class ProductService {
-  // Obtener todos los productos con información del agricultor
+  // Obtener todos los productos
   static async getAllProducts(includeInactive = false): Promise<Product[]> {
     const { data, error } = await supabaseAdmin
       .from('products')
-      .select(`
-        *,
-        farmer:farmers(
-          id,
-          first_name,
-          last_name,
-          business_name
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
       throw new Error(`Error al obtener productos: ${error.message}`);
     }
 
-    // Enriquecer con farmer_name para compatibilidad con el frontend
-    const enriched = (data || []).map((product: any) => ({
-      ...product,
-      farmer_name: product.farmer 
-        ? (product.farmer.business_name || `${product.farmer.first_name} ${product.farmer.last_name}`)
-        : 'Agricultor no asignado'
-    }));
-
-    return enriched as Product[];
+    return data || [];
   }
 
   // Obtener productos con información del agricultor
@@ -51,88 +35,88 @@ export class ProductService {
 
   // Obtener producto por ID
   static async getProductById(id: string): Promise<ProductWithVariants | null> {
-    // Consultar directamente la tabla products con JOIN explícito a farmers
-    const { data, error } = await supabaseAdmin
+    // Consultar la tabla products directamente y hacer JOIN manual con variants
+    const { data: productData, error: productError } = await supabaseAdmin
       .from('products')
-      .select(`
-        *,
-        farmer:farmers(
-          id,
-          first_name,
-          last_name,
-          business_name,
-          profile_image_url,
-          address,
-          city,
-          province,
-          description,
-          story
-        )
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 
-    if (error) {
-      if (error.code === 'PGRST116') {
+    if (productError) {
+      if (productError.code === 'PGRST116') {
         return null; // No encontrado
       }
-      throw new Error(`Error al obtener producto: ${error.message}`);
+      throw new Error(`Error al obtener producto: ${productError.message}`);
     }
 
-    // Obtener las variantes del producto
-    const { data: variants } = await supabaseAdmin
+    if (!productData) {
+      return null;
+    }
+
+    // Obtener variantes del producto
+    const { data: variantsData, error: variantsError } = await supabaseAdmin
       .from('product_variants')
       .select('*')
-      .eq('product_id', id);
+      .eq('product_id', id)
+      .order('created_at', { ascending: true });
 
-    // Enriquecer el producto con sus variantes
-    const enriched: any = {
-      ...data,
-      variants: variants || [],
-      // Reformatear datos del agricultor para el frontend
-      farmer: data.farmer
-        ? {
-            id: data.farmer.id,
-            name: data.farmer.business_name || `${data.farmer.first_name} ${data.farmer.last_name}`,
-            first_name: data.farmer.first_name,
-            last_name: data.farmer.last_name,
-            image: data.farmer.profile_image_url,
-            location: `${data.farmer.city}, ${data.farmer.province}`,
-            coordinates: data.farmer.address,
-            story: data.farmer.story || data.farmer.description || '',
-          }
-        : null,
+    if (variantsError) {
+      console.error('Error al obtener variantes:', variantsError);
+    }
+
+    // Enriquecer con datos del agricultor si existe farmer_id
+    const farmerId = (productData as any).farmer_id;
+    let farmerInfo = null;
+
+    if (farmerId) {
+      const { data: farmerData, error: farmerError } = await supabaseAdmin
+        .from('farmers')
+        .select('id, first_name, last_name, profile_image_url, farm_name, farm_location, story')
+        .eq('id', farmerId)
+        .single();
+
+      if (!farmerError && farmerData) {
+        farmerInfo = {
+          id: farmerData.id,
+          first_name: farmerData.first_name,
+          last_name: farmerData.last_name,
+          name: `${farmerData.first_name} ${farmerData.last_name}`,
+          image: farmerData.profile_image_url || null,
+          location: farmerData.farm_location || 'España',
+          story: farmerData.story || 'Agricultor dedicado a productos de calidad.',
+          coordinates: ''
+        };
+      }
+    }
+
+    // Construir objeto final
+    const enrichedProduct: any = {
+      ...productData,
+      variants: variantsData || [],
+      farmer: farmerInfo || {
+        name: 'Productor Sabor a Tierra',
+        image: null,
+        location: 'España',
+        story: 'Productor local comprometido con la calidad.',
+        coordinates: ''
+      }
     };
 
-    return enriched as ProductWithVariants;
+    return enrichedProduct as ProductWithVariants;
   }
 
   // Crear nuevo producto
-  // El campo 'price' es OPCIONAL (solo informativo "Desde X€")
-  // El precio real se define en las variantes
   static async createProduct(productData: CreateProductRequest): Promise<Product> {
-    // Extraer variantes del payload si existen
-    const variants: any[] = Array.isArray((productData as any)?.variants) 
-      ? (productData as any).variants 
-      : [];
-    
-    // Validar que al menos haya una variante con precio
-    if (variants.length === 0 || !variants.some(v => v.price && v.price > 0)) {
-      throw new Error('Debe proporcionar al menos una variante con precio válido');
-    }
-
-    // SOLO LOS 7 CAMPOS QUE EXISTEN EN LA BD
     const insertData = {
-      name: productData.name,
-      description: productData.description || '',
-      price: parseFloat(String(productData.price)) || 0,
-      category: productData.category,
-      main_image_url: productData.main_image_url || '',
-      farmer_id: productData.farmer_id,
-      unit: productData.unit || 'kg'
-    }
+      ...productData,
+      tags: productData.tags || [],
+      features: productData.features || [],
+      gallery_images: productData.gallery_images || [],
+      stock_quantity: productData.stock_quantity || 0,
+      min_order_quantity: productData.min_order_quantity || 1,
+      requires_cold_shipping: productData.requires_cold_shipping || false
+    };
 
-    // Crear producto
     const { data, error } = await supabaseAdmin
       .from('products')
       .insert([insertData])
@@ -143,35 +127,6 @@ export class ProductService {
       throw new Error(`Error al crear producto: ${error.message}`);
     }
 
-    // Crear variantes asociadas en transacción
-    if (variants.length > 0) {
-      const toNumber = (val: any, integer = false) => {
-        if (val === null || val === undefined || val === '') return 0;
-        const n = Number(val);
-        if (!Number.isFinite(n) || isNaN(n)) return 0;
-        return integer ? Math.trunc(n) : n;
-      };
-
-      // SOLO LOS 5 CAMPOS QUE EXISTEN EN product_variants
-      const normalizedVariants = variants.map((v) => ({
-        product_id: data.id,
-        name: String(v.name || ''),
-        price: parseFloat(v.price) || 0,
-        weight: parseFloat(v.weight) || 0,
-        unit: String(v.unit || 'kg')
-      }));
-
-      const { error: variantsError } = await supabaseAdmin
-        .from('product_variants')
-        .insert(normalizedVariants);
-
-      if (variantsError) {
-        // Si falla la creación de variantes, eliminar el producto creado (rollback manual)
-        await supabaseAdmin.from('products').delete().eq('id', data.id);
-        throw new Error(`Error al crear variantes: ${variantsError.message}`);
-      }
-    }
-
     return data;
   }
 
@@ -180,19 +135,22 @@ export class ProductService {
     // Normalizar variantes si llegan en el payload
     const variants: any[] = Array.isArray(productData?.variants) ? productData.variants : [];
     const toNumber = (val: any, integer = false) => {
-      if (val === null || val === undefined || val === '') return 0;
+      if (val === null || val === undefined) return 0;
       const n = Number(val);
-      if (!Number.isFinite(n) || isNaN(n)) return 0;
+      if (!Number.isFinite(n)) return 0;
       return integer ? Math.trunc(n) : n;
     };
-    // SOLO LOS 5 CAMPOS QUE EXISTEN EN product_variants
     const normalizedVariants = variants.map((v) => ({
       id: v.id || undefined,
       product_id: id,
       name: String(v.name || ''),
-      price: parseFloat(v.price) || 0,
-      weight: parseFloat(v.weight) || 0,
-      unit: String(v.unit || 'kg')
+      description: v.description ? String(v.description) : null,
+      price: toNumber(v.price),
+      stock_quantity: toNumber(v.stock_quantity, true),
+      sku: v.sku ? String(v.sku) : null,
+      weight: v.weight !== undefined && v.weight !== null ? toNumber(v.weight) : null,
+      unit: v.unit ? String(v.unit) : null,
+      pieces: v.pieces !== undefined && v.pieces !== null ? toNumber(v.pieces, true) : null,
     }));
 
     // Quitar variants del objeto de producto antes de actualizar la tabla products
@@ -274,13 +232,13 @@ export class ProductService {
     return data || [];
   }
 
-  // Obtener productos destacados
+  // Obtener productos destacados (primeros 6 productos más recientes)
   static async getFeaturedProducts(): Promise<Product[]> {
     const { data, error } = await supabaseAdmin
       .from('products')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(6);
 
     if (error) {
       throw new Error(`Error al obtener productos destacados: ${error.message}`);
@@ -289,6 +247,22 @@ export class ProductService {
     return data || [];
   }
 
+  // Publicar producto
+  static async publishProduct(id: string): Promise<Product> {
+    return this.updateProduct(id, { updated_at: new Date().toISOString() });
+  }
+
+  // Archivar producto
+  static async archiveProduct(id: string): Promise<Product> {
+    return this.updateProduct(id, { updated_at: new Date().toISOString() });
+  }
+
+  // Actualizar stock
+  static async updateStock(id: string, quantity: number): Promise<Product> {
+    return this.updateProduct(id, { 
+      stock_quantity: quantity
+    });
+  }
 
   // Obtener productos por agricultor usando función SQL
   static async getProductsByFarmer(farmerId: string): Promise<any> {
@@ -318,11 +292,26 @@ export class ProductService {
     return data || [];
   }
 
+  // Obtener productos con bajo stock
+  static async getLowStockProducts(threshold = 10): Promise<Product[]> {
+    const { data, error } = await supabaseAdmin
+      .from('products')
+      .select('*')
+      .lte('stock_quantity', threshold)
+      .order('stock_quantity', { ascending: true });
+
+    if (error) {
+      throw new Error(`Error al obtener productos con bajo stock: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
   // Obtener estadísticas de productos
   static async getProductStats() {
     const { data, error } = await supabaseAdmin
       .from('products')
-      .select('category');
+      .select('category, stock_quantity');
 
     if (error) {
       throw new Error(`Error al obtener estadísticas: ${error.message}`);
@@ -335,6 +324,8 @@ export class ProductService {
 
     const stats = {
       total_products: data?.length || 0,
+      out_of_stock: data?.filter(p => p.stock_quantity === 0).length || 0,
+      low_stock: data?.filter(p => p.stock_quantity > 0 && p.stock_quantity <= 10).length || 0,
       category_distribution: categoryCount
     };
 

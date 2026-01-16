@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { NewsletterService } from '../services/newsletterService';
+import { RegistrationService } from '../services/registrationService';
 
 const router = Router();
 
@@ -7,8 +8,31 @@ const router = Router();
 router.post('/subscribe', async (req: Request, res: Response) => {
   try {
     const subscriptionData = req.body;
-    const subscription = await NewsletterService.subscribe(subscriptionData);
-    return res.status(201).json(subscription);
+    
+    // Usar el servicio unificado de registro
+    // Esto creará el cliente si no existe y enviará el email con cupón
+    const result = await RegistrationService.subscribeToNewsletterOnly({
+      email: subscriptionData.email,
+      first_name: subscriptionData.first_name,
+      last_name: subscriptionData.last_name,
+      interests: subscriptionData.interests,
+      frequency: subscriptionData.frequency
+    });
+    
+    if (result.status === 'already_exists') {
+      return res.status(200).json({ 
+        message: result.message,
+        alreadyRegistered: true,
+        customer: result.customer
+      });
+    }
+    
+    return res.status(201).json({
+      message: result.message,
+      customer: result.customer,
+      discountCode: result.discountCode,
+      alreadyRegistered: false
+    });
   } catch (error) {
     console.error('Error al suscribirse al newsletter:', error);
     return res.status(500).json({ 

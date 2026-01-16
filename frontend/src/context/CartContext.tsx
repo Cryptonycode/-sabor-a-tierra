@@ -7,7 +7,6 @@ const initialCartState: CartState = {
   items: [],
   totalItems: 0,
   totalPrice: 0,
-  totalWeight: 0,
   isOpen: false,
   isLoading: true,
 };
@@ -28,11 +27,7 @@ type CartAction =
 const calculateTotals = (items: CartItem[]) => {
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = items.reduce((sum, item) => sum + item.subtotal, 0);
-  const totalWeight = items.reduce((sum, item) => {
-    const itemWeight = item.weight || 0;
-    return sum + (itemWeight * item.quantity);
-  }, 0);
-  return { totalItems, totalPrice, totalWeight };
+  return { totalItems, totalPrice };
 };
 
 const saveCartToStorage = (items: CartItem[]) => {
@@ -92,7 +87,7 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
     
     case 'REMOVE_FROM_CART': {
       const newItems = state.items.filter(item => item.id !== action.payload);
-      const { totalItems, totalPrice, totalWeight } = calculateTotals(newItems);
+      const { totalItems, totalPrice } = calculateTotals(newItems);
       saveCartToStorage(newItems);
       
       return {
@@ -100,7 +95,6 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
         items: newItems,
         totalItems,
         totalPrice,
-        totalWeight,
       };
     }
     
@@ -110,7 +104,7 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
       if (quantity <= 0) {
         // Si la cantidad es 0 o menor, eliminar el producto
         const newItems = state.items.filter(item => item.id !== id);
-        const { totalItems, totalPrice, totalWeight } = calculateTotals(newItems);
+        const { totalItems, totalPrice } = calculateTotals(newItems);
         saveCartToStorage(newItems);
         
         return {
@@ -118,7 +112,6 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
           items: newItems,
           totalItems,
           totalPrice,
-          totalWeight,
         };
       }
       
@@ -132,7 +125,7 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
           : item
       );
       
-      const { totalItems, totalPrice, totalWeight } = calculateTotals(newItems);
+      const { totalItems, totalPrice } = calculateTotals(newItems);
       saveCartToStorage(newItems);
       
       return {
@@ -140,7 +133,6 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
         items: newItems,
         totalItems,
         totalPrice,
-        totalWeight,
       };
     }
     
@@ -151,7 +143,6 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
         items: [],
         totalItems: 0,
         totalPrice: 0,
-        totalWeight: 0,
       };
     
     case 'TOGGLE_CART':
@@ -173,13 +164,12 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
       };
     
     case 'LOAD_CART': {
-      const { totalItems, totalPrice, totalWeight } = calculateTotals(action.payload);
+      const { totalItems, totalPrice } = calculateTotals(action.payload);
       return {
         ...state,
         items: action.payload,
         totalItems,
         totalPrice,
-        totalWeight,
       };
     }
 

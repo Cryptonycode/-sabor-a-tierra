@@ -11,8 +11,9 @@ export default function CartPage() {
 
   const handleCheckout = () => {
     console.log('Checkout iniciado desde página:', cart);
-    // Redirigir a la página de checkout
-    router.push('/checkout');
+    // Aquí se integrará la pasarela de pago en el futuro
+    // Por ahora, redirigir a página de gracias
+    router.push('/gracias');
   };
 
   const handleClearCart = () => {
@@ -21,27 +22,10 @@ export default function CartPage() {
     }
   };
 
-  // Calcular envío basado en peso
+  // Calcular descuentos y envío
   const subtotal = cart.totalPrice;
-  const totalWeight = cart.totalWeight || 0;
-  
-  // Calcular envío por peso
-  let shippingCost = 0;
-  if (totalWeight > 0) {
-    if (totalWeight <= 4) {
-      shippingCost = 3.90;
-    } else if (totalWeight <= 10) {
-      shippingCost = 4.45;
-    } else if (totalWeight <= 15) {
-      shippingCost = 5.90;
-    } else if (totalWeight <= 20) {
-      shippingCost = 10.95;
-    } else {
-      shippingCost = 10.95; // Pedidos grandes - contactar WhatsApp
-    }
-  }
-  
-  const discount = 0; // Los descuentos se aplican con códigos en checkout
+  const shippingCost = subtotal >= 50 ? 0 : 5.99;
+  const discount = subtotal >= 100 ? subtotal * 0.05 : 0; // 5% descuento si > 100€
   const total = subtotal + shippingCost - discount;
 
   return (
@@ -151,42 +135,26 @@ export default function CartPage() {
                     </div>
                     
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Peso total:</span>
-                      <span className="font-medium">{totalWeight.toFixed(2)} kg</span>
-                    </div>
-                    
-                    <div className="flex justify-between">
                       <span className="text-gray-600">Envío:</span>
-                      <span className={`font-medium ${shippingCost < 0 ? 'text-red-600' : ''}`}>
-                        {shippingCost < 0 ? 'Peso excedido' : `${shippingCost.toFixed(2)}€`}
+                      <span className={`font-medium ${shippingCost === 0 ? 'text-green-600' : ''}`}>
+                        {shippingCost === 0 ? 'Gratis' : `${shippingCost.toFixed(2)}€`}
                       </span>
                     </div>
                     
-                    {totalWeight > 20 && (
-                      <div className="bg-green-50 border border-green-200 rounded p-2 text-xs text-green-700">
-                        💼 Para pedidos superiores a 20 kg,{' '}
-                        <a 
-                          href="https://wa.me/34XXXXXXXXX?text=Hola,%20necesito%20un%20pedido%20grande"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold underline hover:text-green-900"
-                        >
-                          consultar por WhatsApp
-                        </a>
-                        {' '}para precios especiales
+                    {discount > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Descuento (5%):</span>
+                        <span className="font-medium text-green-600">
+                          -{discount.toFixed(2)}€
+                        </span>
                       </div>
                     )}
-                    
-                    <div className="flex justify-between text-sm text-gray-600">
-                      <span>IVA (4%):</span>
-                      <span>Incluido</span>
-                    </div>
                     
                     <div className="border-t pt-4">
                       <div className="flex justify-between items-center">
                         <span className="text-lg font-bold text-gray-800">Total:</span>
                         <span className="text-xl font-bold text-accent">
-                          {shippingCost < 0 ? '---' : `${total.toFixed(2)}€`}
+                          {total.toFixed(2)}€
                         </span>
                       </div>
                     </div>
@@ -206,14 +174,14 @@ export default function CartPage() {
                       <svg className="w-4 h-4 mt-0.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      <span>Envío calculado por peso (0-4kg: 3,90€)</span>
+                      <span>Envío gratis en pedidos superiores a 50€</span>
                     </div>
                     
                     <div className="flex items-start space-x-2">
                       <svg className="w-4 h-4 mt-0.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      <span>Para pedidos superiores a 20 kg, consultar por WhatsApp para obtener precios especiales</span>
+                      <span>Descuento del 5% en pedidos superiores a 100€</span>
                     </div>
                     
                     <div className="flex items-start space-x-2">
@@ -237,7 +205,7 @@ export default function CartPage() {
                     <div className="flex flex-wrap gap-2">
                       <div className="bg-gray-100 rounded px-2 py-1 text-xs font-medium">VISA</div>
                       <div className="bg-gray-100 rounded px-2 py-1 text-xs font-medium">Mastercard</div>
-                      <div className="bg-gray-100 rounded px-2 py-1 text-xs font-medium">Bizum</div>
+                      <div className="bg-gray-100 rounded px-2 py-1 text-xs font-medium">PayPal</div>
                     </div>
                   </div>
                 </div>

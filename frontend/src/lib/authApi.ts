@@ -36,6 +36,7 @@ class AuthAPI {
         // Guardar token y datos del admin en localStorage
         localStorage.setItem(this.TOKEN_KEY, response.token);
         localStorage.setItem(this.ADMIN_KEY, JSON.stringify(response.admin));
+        localStorage.setItem('isAuthenticated', 'true');
       }
       
       return response;
@@ -54,6 +55,7 @@ class AuthAPI {
   logout(): void {
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.ADMIN_KEY);
+    localStorage.removeItem('isAuthenticated');
   }
 
   /**
@@ -99,6 +101,7 @@ class AuthAPI {
       if (response.success && response.admin) {
         // Actualizar datos del admin en localStorage
         localStorage.setItem(this.ADMIN_KEY, JSON.stringify(response.admin));
+        localStorage.setItem('isAuthenticated', 'true');
         return { valid: true, admin: response.admin };
       }
 

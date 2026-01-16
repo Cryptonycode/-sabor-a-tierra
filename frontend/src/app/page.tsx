@@ -27,22 +27,22 @@ interface FeaturedProduct {
 // Datos de ejemplo para testimonios
 const testimonials = [
   {
-    name: 'María García',
+    name: 'Jose Luis',
     role: 'Agricultora de Tomates',
-    imageUrl: 'https://images.pexels.com/photos/5905902/pexels-photo-5905902.jpeg?w=200&h=200&fit=crop',
+    imageUrl: 'https://images.pexels.com/photos/10041309/pexels-photo-10041309.jpeg?auto=compress&cs=tinysrgb&w=300',
     testimonial: 'Gracias a Sabor a Tierra, puedo vender mis productos directamente a los consumidores y recibir un precio justo por mi trabajo.',
   },
   {
     name: 'Juan Martínez',
-    role: 'Productor de Aceite',
+    role: 'Productor de Hortalizas',
     imageUrl: 'https://images.pexels.com/photos/2382665/pexels-photo-2382665.jpeg?w=200&h=200&fit=crop',
-    testimonial: 'La plataforma nos ha permitido llegar a más clientes y mantener la calidad de nuestro aceite de oliva virgen extra.',
+    testimonial: 'La plataforma nos ha permitido ofrecer nuestras hortalizas de temporada directamente a clientes finales, reduciendo intermediarios y recibiendo un precio justo por el trabajo en la huerta.',
   },
   {
-    name: 'Ana López',
-    role: 'Agricultora de Cítricos',
-    imageUrl: 'https://images.pexels.com/photos/5905445/pexels-photo-5905445.jpeg?w=200&h=200&fit=crop',
-    testimonial: 'Es increíble poder conectar directamente con los consumidores y ver cómo valoran nuestros productos ecológicos.',
+    name: 'Rafael Moyano',
+    role: 'Agricultor de Cítricos',
+    imageUrl: 'https://images.pexels.com/photos/35555241/pexels-photo-35555241.jpeg?auto=compress&cs=tinysrgb&w=300',
+    testimonial: 'Es increíble ver cómo valoran nuestros cítricos ecológicos. Gracias a Sabor a Tierra, puedo conectar directamente con consumidores que aprecian la calidad y el sabor real de la fruta recién recolectada.',
   },
 ];
 
@@ -64,7 +64,9 @@ export default function Home() {
       try {
         setLoadingProducts(true);
         const products = await apiClient.get<FeaturedProduct[]>('/products/featured');
-        setFeaturedProducts(products.slice(0, 4)); // Mostrar solo 4 productos
+        // Protección contra arrays nulos o undefined
+        const validProducts = Array.isArray(products) ? products : [];
+        setFeaturedProducts(validProducts.slice(0, 4)); // Mostrar solo 4 productos
       } catch (error) {
         console.error('Error al cargar productos destacados:', error);
         setFeaturedProducts([]);
@@ -118,7 +120,7 @@ export default function Home() {
               cultivados con pasión por agricultores locales.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-              {featuredProducts.map((product) => (
+              {(featuredProducts || []).map((product) => (
                 <ProductCard key={product.id} {...product} />
               ))}
             </div>
