@@ -11,9 +11,6 @@ import './config/supabase';
 // Importar rutas
 import orderRoutes from './routes/orderRoutes';
 import customerRoutes from './routes/customerRoutes';
-import farmerRoutes from './routes/farmerRoutes';
-import farmerApplicationRoutes from './routes/farmerApplicationRoutes';
-import newsletterRoutes from './routes/newsletterRoutes';
 import adminRoutes from './routes/adminRoutes';
 import discountRoutes from './routes/discountRoutes';
 
@@ -86,9 +83,6 @@ if (hasFacebookOAuth) {
 app.use('/api/discounts', discountRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/customers', customerRoutes);
-app.use('/api/farmers', farmerRoutes);
-app.use('/api/farmer-applications', farmerApplicationRoutes);
-app.use('/api/newsletter', newsletterRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Ruta básica

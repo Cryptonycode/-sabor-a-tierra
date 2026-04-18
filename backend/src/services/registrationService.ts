@@ -1,6 +1,5 @@
 import { supabaseAdmin } from '../config/supabase';
 import { CustomerService } from './customerService';
-import { NewsletterService } from './newsletterService';
 import DiscountService from './discountService';
 import { EmailService } from './emailService';
 import { Customer } from '../types/database';
@@ -61,33 +60,10 @@ export class RegistrationService {
 
       const newCustomer = await CustomerService.createCustomer(customerData);
 
-      // 3. Crear suscripción al newsletter si no existe
-      const existingNewsletterSub = await NewsletterService.getSubscriptionByEmail(email);
-      
-      if (!existingNewsletterSub) {
-        // Crear nueva suscripción al newsletter
-        await NewsletterService.subscribe({
-          email,
-          first_name: first_name || '',
-          last_name: last_name || '',
-          interests: interests || [],
-          frequency: newsletter_frequency || 'weekly'
-        });
-      } else if (!existingNewsletterSub.is_active) {
-        // Reactivar suscripción si estaba inactiva
-        await NewsletterService.reactivateSubscription(existingNewsletterSub.id, {
-          email,
-          first_name: first_name || '',
-          last_name: last_name || '',
-          interests: interests || [],
-          frequency: newsletter_frequency || 'weekly'
-        });
-      }
-
-      // 4. Crear cupón de bienvenida BIENVENIDA10 (10% de descuento, un solo uso)
+      // 3. Crear cupón de bienvenida BIENVENIDA10 (10% de descuento, un solo uso)
       const discountCode = await this.createWelcomeDiscount(email);
 
-      // 5. Enviar email de bienvenida con el cupón
+      // 4. Enviar email de bienvenida con el cupón
       await EmailService.sendWelcomeEmail({
         email,
         firstName: first_name,
@@ -95,7 +71,7 @@ export class RegistrationService {
         discountCode
       });
 
-      // 6. Devolver el resultado
+      // 5. Devolver el resultado
       return {
         status: 'created',
         customer: newCustomer,
