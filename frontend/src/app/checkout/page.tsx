@@ -123,7 +123,7 @@ export default function CheckoutPage() {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
-  const calculateShipping = () => {
+  const calculateShipping = (): number => {
     // Calcular peso total del carrito (kg)
     const totalWeight = cart.items.reduce((total, item) => {
       const itemWeight = item.weight || 0;

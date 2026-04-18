@@ -121,14 +121,14 @@ export default function AdminDashboard() {
       count: stats?.pending_orders || 0,
       description: 'Pedidos que requieren procesamiento',
       link: '/admin/pedidos',
-      urgent: stats?.pending_orders > 5
+      urgent: (stats?.pending_orders ?? 0) > 5
     },
     {
       title: 'Stock Bajo',
       count: stats?.low_stock_products || 0,
       description: 'Productos que necesitan reposición',
       link: '/admin/inventario',
-      urgent: stats?.low_stock_products > 0
+      urgent: (stats?.low_stock_products ?? 0) > 0
     },
   ];
 

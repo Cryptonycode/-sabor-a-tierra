@@ -67,8 +67,7 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
         // Campo requerido por el backend, pero eliminado del formulario → enviar vacío
         main_products: '',
         description: formData.descripcion,
-        // Extendemos datos enviados si backend lo admite; si no, se ignora
-        profile_image_url: formData.profile_image_path || undefined,
+        profile_image_path: formData.profile_image_path || undefined,
       };
 
       await farmerApplicationApi.submit(applicationData);

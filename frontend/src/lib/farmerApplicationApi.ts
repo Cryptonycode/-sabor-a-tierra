@@ -12,6 +12,7 @@ export interface FarmerApplicationData {
   farming_experience: number;
   hectares?: number;
   production_type: 'organic' | 'conventional' | 'integrated';
+  main_products?: string;
   description: string;
   website?: string;
   social_media?: string;
