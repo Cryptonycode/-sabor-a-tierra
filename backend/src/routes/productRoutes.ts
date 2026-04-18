@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { ProductService } from '../services/productService';
-import { requireAuth, requireAdmin } from '../middleware/authMiddleware';
 
 const router = Router();
 
@@ -43,20 +42,6 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/admin/products - Obtener todos los productos para admin (incluye inactivos y borradores)
-router.get('/admin/list', requireAuth, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const products = await ProductService.getAllProducts(true);
-    return res.json(products);
-  } catch (error) {
-    console.error('Error al obtener productos (admin):', error);
-    return res.status(500).json({
-      error: 'Error interno del servidor',
-      message: error instanceof Error ? error.message : 'Error desconocido'
-    });
-  }
-});
-
 // GET /api/products/:id - Obtener producto por ID
 router.get('/:id', async (req: Request, res: Response) => {
   try {
@@ -71,53 +56,6 @@ router.get('/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error al obtener producto:', error);
     return res.status(500).json({ 
-      error: 'Error interno del servidor',
-      message: error instanceof Error ? error.message : 'Error desconocido'
-    });
-  }
-});
-
-// POST /api/products - Crear nuevo producto
-router.post('/', requireAuth, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const productData = req.body;
-    const product = await ProductService.createProduct(productData);
-    res.status(201).json(product);
-  } catch (error) {
-    console.error('Error al crear producto:', error);
-    res.status(500).json({ 
-      error: 'Error interno del servidor',
-      message: error instanceof Error ? error.message : 'Error desconocido'
-    });
-  }
-});
-
-// PUT /api/products/:id - Actualizar producto
-router.put('/:id', requireAuth, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    
-    const { id } = req.params;
-    const productData = req.body;
-    const product = await ProductService.updateProduct(id, productData);
-    res.json(product);
-  } catch (error) {
-    console.error('Error al actualizar producto:', error);
-    res.status(500).json({ 
-      error: 'Error interno del servidor',
-      message: error instanceof Error ? error.message : 'Error desconocido'
-    });
-  }
-});
-
-// DELETE /api/products/:id - Eliminar producto
-router.delete('/:id', requireAuth, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    await ProductService.deleteProduct(id);
-    res.status(204).send();
-  } catch (error) {
-    console.error('Error al eliminar producto:', error);
-    res.status(500).json({ 
       error: 'Error interno del servidor',
       message: error instanceof Error ? error.message : 'Error desconocido'
     });

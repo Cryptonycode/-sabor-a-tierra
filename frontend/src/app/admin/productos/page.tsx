@@ -118,10 +118,31 @@ export default function ProductsManagementPage() {
     fetchFarmers();
   }, []);
 
+  const adminApiRequest = async <T,>(endpoint: string, options: RequestInit = {}): Promise<T> => {
+    const response = await fetch(`/api/admin${endpoint}`, {
+      ...options,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      }
+    });
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || 'Error en API admin');
+    }
+    return data as T;
+  };
+
   const fetchProducts = async () => {
     try {
       console.log('🔄 Obteniendo productos...');
-      const response = await apiClient.get<Product[]>('/products?includeInactive=true');
+      const response = await adminApiRequest<Product[]>('/products');
       console.log('✅ Productos recibidos:', response);
       console.log('📊 Cantidad de productos:', response.length);
       setProducts(response);
@@ -173,10 +194,16 @@ export default function ProductsManagementPage() {
       const payload = { ...formData, variants: variantsPayload } as any;
 
       if (editingProduct) {
-        await apiClient.put(`/products/${editingProduct.id}`, payload);
+        await adminApiRequest(`/products/${editingProduct.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
         alert('Producto actualizado con éxito');
       } else {
-        await apiClient.post('/products', payload);
+        await adminApiRequest('/products', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
         alert('Producto creado con éxito');
       }
       
@@ -191,7 +218,7 @@ export default function ProductsManagementPage() {
   // Cargar variantes de un producto
   const fetchVariants = async (productId: string) => {
     try {
-      const response = await apiClient.get<ProductVariant[]>(`/products/${productId}/variants`);
+      const response = await adminApiRequest<ProductVariant[]>(`/products/${productId}/variants`);
       setVariants(response);
     } catch (error) {
       console.error('Error al cargar variantes:', error);
@@ -223,7 +250,7 @@ export default function ProductsManagementPage() {
   const handleDelete = async (productId: string) => {
     if (confirm('¿Estás seguro de que quieres eliminar este producto?')) {
       try {
-        await apiClient.delete(`/products/${productId}`);
+        await adminApiRequest(`/products/${productId}`, { method: 'DELETE' });
         alert('Producto eliminado con éxito');
         await fetchProducts();
       } catch (error) {
@@ -297,10 +324,16 @@ export default function ProductsManagementPage() {
     try {
       if (editingVariant && editingVariant.id) {
         // Actualizar variante existente
-        await apiClient.put(`/variants/${editingVariant.id}`, variantFormData);
+        await adminApiRequest(`/variants/${editingVariant.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(variantFormData)
+        });
       } else {
         // Crear nueva variante
-        await apiClient.post(`/products/${editingProduct.id}/variants`, variantFormData);
+        await adminApiRequest(`/products/${editingProduct.id}/variants`, {
+          method: 'POST',
+          body: JSON.stringify(variantFormData)
+        });
       }
       
       // Recargar variantes
@@ -332,7 +365,7 @@ export default function ProductsManagementPage() {
     }
 
     try {
-      await apiClient.delete(`/variants/${variantId}`);
+      await adminApiRequest(`/variants/${variantId}`, { method: 'DELETE' });
       
       // Recargar variantes
       if (editingProduct) {

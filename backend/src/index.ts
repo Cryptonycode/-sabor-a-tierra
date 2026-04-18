@@ -18,7 +18,6 @@ import newsletterRoutes from './routes/newsletterRoutes';
 import adminRoutes from './routes/adminRoutes';
 import authRoutes from './routes/authRoutes';
 import discountRoutes from './routes/discountRoutes';
-import variantRoutes from './routes/variantRoutes';
 
 // Configuración de variables de entorno
 dotenv.config();
@@ -88,7 +87,6 @@ if (hasFacebookOAuth) {
 // Rutas de la API
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
-app.use('/api', variantRoutes); // Rutas de variantes de productos
 app.use('/api/discounts', discountRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/customers', customerRoutes);
