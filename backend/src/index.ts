@@ -10,9 +10,7 @@ import './config/supabase';
 
 // Importar rutas
 import orderRoutes from './routes/orderRoutes';
-import customerRoutes from './routes/customerRoutes';
 import adminRoutes from './routes/adminRoutes';
-import discountRoutes from './routes/discountRoutes';
 
 // Configuración de variables de entorno
 dotenv.config();
@@ -80,9 +78,7 @@ if (hasFacebookOAuth) {
 }
 
 // Rutas de la API
-app.use('/api/discounts', discountRoutes);
 app.use('/api/orders', orderRoutes);
-app.use('/api/customers', customerRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Ruta básica

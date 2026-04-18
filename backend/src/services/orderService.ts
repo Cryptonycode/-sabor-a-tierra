@@ -112,8 +112,7 @@ export class OrderService {
       let discount_code_used: string | undefined;
       let discount_amount = 0;
       if (orderData.discountCode) {
-        const { DiscountService } = await import('./discountService');
-        const validation = await DiscountService.validateDiscountCode(orderData.discountCode);
+        const validation = await this.validateDiscountCode(orderData.discountCode);
         if (!validation.isValid || !validation.percentage) {
           throw new Error('Código de descuento inválido o expirado');
         }
@@ -214,8 +213,7 @@ export class OrderService {
 
       // 4. Marcar código como usado si corresponde
       if (discount_code_used) {
-        const { DiscountService } = await import('./discountService');
-        await DiscountService.markCodeAsUsed(discount_code_used, orderId);
+        await this.markDiscountCodeAsUsed(discount_code_used, orderId);
       }
 
       // 5. Actualizar stock de productos (simplificado)
@@ -608,6 +606,50 @@ export class OrderService {
       }
     } catch (error) {
       console.warn('Error al actualizar stock del producto:', error);
+    }
+  }
+
+  private static async validateDiscountCode(code: string): Promise<{ isValid: boolean; percentage: number | null }> {
+    const { data, error } = await supabaseAdmin
+      .from('discount_codes')
+      .select('*')
+      .eq('code', code)
+      .maybeSingle();
+
+    if (error || !data) {
+      return { isValid: false, percentage: null };
+    }
+
+    if (!data.is_active) {
+      return { isValid: false, percentage: null };
+    }
+
+    if (typeof data.max_uses === 'number' && typeof data.times_used === 'number' && data.times_used >= data.max_uses) {
+      return { isValid: false, percentage: null };
+    }
+
+    if (data.expires_at && new Date(data.expires_at) < new Date()) {
+      return { isValid: false, percentage: null };
+    }
+
+    return { isValid: true, percentage: data.discount_percentage ?? null };
+  }
+
+  private static async markDiscountCodeAsUsed(code: string, orderId: string): Promise<void> {
+    const { data } = await supabaseAdmin
+      .from('discount_codes')
+      .select('times_used')
+      .eq('code', code)
+      .maybeSingle();
+
+    const newTimesUsed = typeof data?.times_used === 'number' ? data.times_used + 1 : 1;
+    const { error } = await supabaseAdmin
+      .from('discount_codes')
+      .update({ times_used: newTimesUsed, last_order_id: orderId })
+      .eq('code', code);
+
+    if (error) {
+      throw new Error(`Error al marcar código como usado: ${error.message}`);
     }
   }
 }
