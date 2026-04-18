@@ -1,15 +1,32 @@
 {
-  "name": "sabor-a-tierra",
+  "name": "sabor-a-tierra-frontend",
   "version": "1.0.0",
-  "description": "Plataforma de venta directa de productos agrícolas",
   "private": true,
-  "workspaces": [
-    "frontend"
-  ],
   "scripts": {
-    "dev": "npm run dev:frontend",
-    "dev:frontend": "npm run dev --workspace=frontend",
-    "build": "npm run build --workspace=frontend",
-    "start": "npm run start --workspace=frontend"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.1.1",
+    "@supabase/supabase-js": "^2.103.3",
+    "autoprefixer": "^10.4.17",
+    "axios": "^1.6.7",
+    "browser-image-compression": "^2.0.2",
+    "next": "^14.1.0",
+    "postcss": "^8.4.35",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.1",
+    "tailwindcss": "^3.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "@types/react": "^18.2.57",
+    "@types/react-dom": "^18.2.19",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.1.0",
+    "typescript": "^5.3.3"
   }
-} 
+}
