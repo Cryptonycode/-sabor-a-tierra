@@ -9,7 +9,6 @@ import { Strategy as FacebookStrategy } from 'passport-facebook';
 import './config/supabase';
 
 // Importar rutas
-import productRoutes from './routes/productRoutes';
 import orderRoutes from './routes/orderRoutes';
 import customerRoutes from './routes/customerRoutes';
 import farmerRoutes from './routes/farmerRoutes';
@@ -86,7 +85,6 @@ if (hasFacebookOAuth) {
 
 // Rutas de la API
 app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);
 app.use('/api/discounts', discountRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/customers', customerRoutes);

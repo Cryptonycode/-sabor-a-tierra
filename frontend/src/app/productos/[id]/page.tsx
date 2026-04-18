@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { Product } from '@/types/cart';
-import { apiClient } from '@/lib/api';
+import { productApi } from '@/lib/api';
 import Footer from '@/components/Footer';
 import { toast } from 'react-hot-toast';
 
@@ -26,7 +26,7 @@ export default function ProductPage() {
     const fetchProduct = async () => {
       try {
         setLoading(true);
-        const data = await apiClient.get<any>(`/products/${productId}`);
+        const data = await productApi.getById(productId);
         setProduct(data);
         setError(null);
       } catch (err: any) {

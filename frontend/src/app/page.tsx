@@ -5,7 +5,7 @@ import ProductCard from '@/components/ProductCard';
 import TestimonialCard from '@/components/TestimonialCard';
 import Footer from '@/components/Footer';
 import { useEffect, useState } from 'react';
-import { apiClient } from '@/lib/api';
+import { productApi } from '@/lib/api';
 
 const heroSlides = [
   '/slide1.jpg',
@@ -63,7 +63,7 @@ export default function Home() {
     const fetchFeaturedProducts = async () => {
       try {
         setLoadingProducts(true);
-        const products = await apiClient.get<FeaturedProduct[]>('/products/featured');
+        const products = await productApi.getFeatured();
         // Protección contra arrays nulos o undefined
         const validProducts = Array.isArray(products) ? products : [];
         setFeaturedProducts(validProducts.slice(0, 4)); // Mostrar solo 4 productos

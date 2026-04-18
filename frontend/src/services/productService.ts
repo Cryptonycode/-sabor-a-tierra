@@ -35,6 +35,92 @@ const toNumber = (val: unknown, integer = false): number => {
 };
 
 export class ProductService {
+  static async getPublicProducts(filters?: {
+    category?: string;
+    search?: string;
+    featured?: boolean;
+  }) {
+    let query = supabaseAdmin
+      .from('products')
+      .select('*')
+      .eq('status', 'published')
+      .eq('is_available', true)
+      .order('created_at', { ascending: false });
+
+    if (filters?.category) {
+      query = query.eq('category', filters.category);
+    }
+
+    if (filters?.search) {
+      query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+    }
+
+    if (filters?.featured) {
+      query = query.eq('featured', true).limit(6);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(`Error al obtener productos públicos: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
+  static async getPublicProductById(id: string) {
+    const { data: productData, error: productError } = await supabaseAdmin
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .eq('status', 'published')
+      .single();
+
+    if (productError) {
+      if (productError.code === 'PGRST116') {
+        return null;
+      }
+      throw new Error(`Error al obtener producto público: ${productError.message}`);
+    }
+
+    if (!productData) {
+      return null;
+    }
+
+    const { data: variantsData, error: variantsError } = await supabaseAdmin
+      .from('product_variants')
+      .select('*')
+      .eq('product_id', id)
+      .order('created_at', { ascending: true });
+
+    if (variantsError) {
+      throw new Error(`Error al obtener variantes del producto: ${variantsError.message}`);
+    }
+
+    return {
+      ...productData,
+      variants: variantsData || []
+    };
+  }
+
+  static async getPublicCategories() {
+    const { data, error } = await supabaseAdmin
+      .from('products')
+      .select('category')
+      .eq('status', 'published')
+      .eq('is_available', true);
+
+    if (error) {
+      throw new Error(`Error al obtener categorías: ${error.message}`);
+    }
+
+    const uniqueCategories = Array.from(
+      new Set((data || []).map((item) => item.category).filter(Boolean))
+    );
+
+    return uniqueCategories;
+  }
+
   static async getAllAdminProducts() {
     const { data, error } = await supabaseAdmin
       .from('products')

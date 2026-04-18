@@ -74,6 +74,7 @@ class ApiClient {
 // Instancias y exportaciones
 export const api = new ApiClient(API_BASE_URL);
 export const apiClient = api; // alias para compatibilidad
+const publicApiClient = new ApiClient('/api/public');
 
 // Tipos para las respuestas de la API
 export interface ApiProduct {
@@ -122,11 +123,11 @@ export interface ApiFarmer {
 
 // Servicios específicos para cada entidad
 export const productApi = {
-  getAll: () => apiClient.get<ApiProduct[]>('/products'),
-  getById: (id: string) => apiClient.get<ApiProduct>(`/products/${id}`),
-  getByCategory: (category: string) => apiClient.get<ApiProduct[]>(`/products?category=${category}`),
-  search: (query: string) => apiClient.get<ApiProduct[]>(`/products?search=${query}`),
-  getFeatured: () => apiClient.get<ApiProduct[]>('/products?featured=true'),
+  getAll: () => publicApiClient.get<ApiProduct[]>('/products'),
+  getById: (id: string) => publicApiClient.get<ApiProduct>(`/products/${id}`),
+  getByCategory: (category: string) => publicApiClient.get<ApiProduct[]>(`/products?category=${encodeURIComponent(category)}`),
+  search: (query: string) => publicApiClient.get<ApiProduct[]>(`/products?search=${encodeURIComponent(query)}`),
+  getFeatured: () => publicApiClient.get<ApiProduct[]>('/products?featured=true'),
 };
 
 export const farmerApi = {
