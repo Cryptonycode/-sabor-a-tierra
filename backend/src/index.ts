@@ -15,7 +15,6 @@ import farmerRoutes from './routes/farmerRoutes';
 import farmerApplicationRoutes from './routes/farmerApplicationRoutes';
 import newsletterRoutes from './routes/newsletterRoutes';
 import adminRoutes from './routes/adminRoutes';
-import authRoutes from './routes/authRoutes';
 import discountRoutes from './routes/discountRoutes';
 
 // Configuración de variables de entorno
@@ -84,7 +83,6 @@ if (hasFacebookOAuth) {
 }
 
 // Rutas de la API
-app.use('/api/auth', authRoutes);
 app.use('/api/discounts', discountRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/customers', customerRoutes);

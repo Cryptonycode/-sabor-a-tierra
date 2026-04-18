@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { authService } from '../services/authService';
+import { supabaseAdmin } from '../config/supabase';
 
 // Extender el tipo Request para incluir admin
 declare global {
@@ -35,20 +35,45 @@ export const requireAuth = async (
 
     const token = authHeader.substring(7); // Remover 'Bearer '
 
-    const verification = authService.verifyToken(token);
-
-    if (!verification.valid) {
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !userData.user?.email) {
       res.status(401).json({
         success: false,
-        message: verification.error || 'Token inválido'
+        message: 'Token inválido'
       });
       return;
     }
 
-    // Verificar que el admin aún existe y está activo
-    const admin = await authService.getAdminById(verification.admin.adminId);
+    const user = userData.user;
+    const userEmail = user.email;
+    if (!userEmail) {
+      res.status(401).json({
+        success: false,
+        message: 'Token inválido'
+      });
+      return;
+    }
+    const metaRole = user.app_metadata?.role || user.user_metadata?.role;
 
-    if (!admin) {
+    if (metaRole && ['superadmin', 'admin', 'moderator'].includes(metaRole)) {
+      req.admin = {
+        id: user.id,
+        email: userEmail,
+        role: metaRole
+      };
+      next();
+      return;
+    }
+
+    // Fallback temporal para admins legacy en tabla personalizada.
+    const { data: admin, error: adminError } = await supabaseAdmin
+      .from('admins')
+      .select('id, email, role, is_active')
+      .eq('email', userEmail)
+      .eq('is_active', true)
+      .single();
+
+    if (adminError || !admin) {
       res.status(401).json({
         success: false,
         message: 'Administrador no encontrado o inactivo'
@@ -121,10 +146,33 @@ export const optionalAuth = async (
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
-      const verification = authService.verifyToken(token);
+      const { data: userData } = await supabaseAdmin.auth.getUser(token);
 
-      if (verification.valid) {
-        const admin = await authService.getAdminById(verification.admin.adminId);
+      if (userData.user?.email) {
+        const user = userData.user;
+        const userEmail = user.email;
+        if (!userEmail) {
+          next();
+          return;
+        }
+        const metaRole = user.app_metadata?.role || user.user_metadata?.role;
+        if (metaRole && ['superadmin', 'admin', 'moderator'].includes(metaRole)) {
+          req.admin = {
+            id: user.id,
+            email: userEmail,
+            role: metaRole
+          };
+          next();
+          return;
+        }
+
+        const { data: admin } = await supabaseAdmin
+          .from('admins')
+          .select('id, email, role, is_active')
+          .eq('email', userEmail)
+          .eq('is_active', true)
+          .single();
+
         if (admin) {
           req.admin = {
             id: admin.id,
