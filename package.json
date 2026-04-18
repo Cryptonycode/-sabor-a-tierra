@@ -4,17 +4,12 @@
   "description": "Plataforma de venta directa de productos agrícolas",
   "private": true,
   "workspaces": [
-    "frontend",
-    "backend"
+    "frontend"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev": "npm run dev:frontend",
     "dev:frontend": "npm run dev --workspace=frontend",
-    "dev:backend": "npm run dev --workspace=backend",
-    "build": "npm run build --workspaces",
-    "start": "npm run start --workspaces"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
+    "build": "npm run build --workspace=frontend",
+    "start": "npm run start --workspace=frontend"
   }
 } 

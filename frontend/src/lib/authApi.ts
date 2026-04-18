@@ -1,5 +1,3 @@
-import { api } from './api';
-
 export interface AdminUser {
   id: string;
   email: string;
@@ -24,7 +22,7 @@ export interface AuthResponse {
 class AuthAPI {
   private TOKEN_KEY = 'admin_token';
   private ADMIN_KEY = 'admin_user';
-  private NEXT_AUTH_BASE = '/api/admin/auth';
+  private NEXT_AUTH_BASE = '/api/auth';
 
   private async requestNextAuth<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const response = await fetch(`${this.NEXT_AUTH_BASE}${endpoint}`, {
@@ -135,18 +133,12 @@ class AuthAPI {
    */
   async changePassword(oldPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
     try {
-      const token = this.getToken();
-      if (!token) {
-        return { success: false, message: 'No autenticado' };
-      }
-
-      const response = await api.post<{ success: boolean; message: string }>('/auth/change-password', {
-        oldPassword,
-        newPassword
-      }, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+      const response = await this.requestNextAuth<{ success: boolean; message: string }>('/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          oldPassword,
+          newPassword
+        })
       });
 
       return response;
@@ -167,18 +159,16 @@ class AuthAPI {
     role?: 'admin' | 'moderator';
   }): Promise<AuthResponse> {
     try {
-      const token = this.getToken();
-      if (!token) {
-        return { success: false, message: 'No autenticado' };
-      }
-
-      const response = await api.post<AuthResponse>('/auth/create-admin', adminData, {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`
-        }
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(adminData)
       });
 
-      return response;
+      return await response.json() as AuthResponse;
     } catch (error) {
       console.error('Error creando admin:', error);
       return { success: false, message: 'Error de conexión' };

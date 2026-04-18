@@ -1,5 +1,7 @@
-// API Client para conectar con el backend
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+import { CheckoutPayload, Order } from '@/types/order';
+
+// API Client interno (Route Handlers de Next.js)
+const API_BASE_URL = '/api';
 
 // Configuración base para requests
 const defaultOptions: RequestInit = {
@@ -131,20 +133,31 @@ export const productApi = {
 };
 
 export const farmerApi = {
-  getAll: () => apiClient.get<ApiFarmer[]>('/farmers'),
-  getById: (id: string) => apiClient.get<ApiFarmer>(`/farmers/${id}`),
-  getBySpecialty: (specialty: string) => apiClient.get<ApiFarmer[]>(`/farmers/specialty/${specialty}`),
-  search: (query: string) => apiClient.get<ApiFarmer[]>(`/farmers/search/${query}`),
+  getAll: () => publicApiClient.get<ApiFarmer[]>('/farmers'),
+  getById: (id: string) => publicApiClient.get<ApiFarmer>(`/farmers/${id}`),
+  getBySpecialty: (specialty: string) => publicApiClient.get<ApiFarmer[]>(`/farmers?specialty=${encodeURIComponent(specialty)}`),
+  search: (query: string) => publicApiClient.get<ApiFarmer[]>(`/farmers?search=${encodeURIComponent(query)}`),
 };
 
 export const orderApi = {
-  create: (orderData: any) => apiClient.post('/orders', orderData),
-  getById: (id: string) => apiClient.get(`/orders/${id}`),
+  create: async (orderData: CheckoutPayload): Promise<{ success: boolean; order: Order }> => {
+    const response = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(orderData)
+    });
+    return response.json();
+  },
+  getById: async (id: string): Promise<{ success: boolean; order: Order }> => {
+    const response = await fetch(`/api/orders/${id}`, { credentials: 'include' });
+    return response.json();
+  },
 };
 
 export const newsletterApi = {
   subscribe: (data: { email: string; first_name?: string; last_name?: string }) => 
-    apiClient.post('/newsletter/subscribe', data),
+    publicApiClient.post('/newsletter', data),
 };
 
 export default apiClient;

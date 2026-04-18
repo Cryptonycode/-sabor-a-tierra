@@ -1,0 +1,314 @@
+import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
+import { markDiscountCodeAsUsed, validateDiscountCode } from '@/lib/server/discounts';
+import { CheckoutPayload, Order, OrderItem, OrderTimelineEntry, OrderStatus, PaymentStatus } from '@/types/order';
+
+type CheckoutItemInput = {
+  product_id: string;
+  quantity: number;
+  unit_price?: number;
+};
+
+const generateOrderNumber = () => {
+  const year = new Date().getFullYear();
+  const timestamp = Date.now().toString().slice(-6);
+  return `ORD-${year}-${timestamp}`;
+};
+
+const calculateEstimatedDelivery = () => {
+  const deliveryDate = new Date();
+  deliveryDate.setDate(deliveryDate.getDate() + 3);
+  return deliveryDate.toISOString().slice(0, 10);
+};
+
+type OrderRow = Omit<Order, 'order_status' | 'customer_name' | 'delivery_address' | 'delivery_city' | 'delivery_postal_code' | 'delivery_notes' | 'estimated_delivery' | 'items' | 'timeline'>;
+
+export const mapOrderForClient = (
+  order: OrderRow,
+  items: OrderItem[] = [],
+  timeline: OrderTimelineEntry[] = []
+): Order => ({
+  ...order,
+  order_status: order.status as OrderStatus,
+  customer_name: `${order.customer_first_name || ''} ${order.customer_last_name || ''}`.trim(),
+  delivery_address: order.shipping_address,
+  delivery_city: order.shipping_city,
+  delivery_postal_code: order.shipping_postal_code,
+  delivery_notes: order.shipping_notes,
+  estimated_delivery: order.estimated_delivery_date,
+  items,
+  timeline
+});
+
+const addTimelineEntry = async (
+  orderId: string,
+  status: string,
+  notes?: string,
+  createdBy?: string
+) => {
+  await supabaseAdmin.from('order_timeline').insert([
+    {
+      order_id: orderId,
+      status,
+      notes: notes ?? null,
+      created_by: createdBy ?? 'sistema',
+      created_at: new Date().toISOString()
+    }
+  ]);
+};
+
+const findOrCreateCustomer = async (
+  customerInfo: CheckoutPayload['customer_info'],
+  marketingConsent: boolean
+) => {
+  const { data: existing } = await supabaseAdmin
+    .from('customers')
+    .select('id')
+    .eq('email', customerInfo.email)
+    .maybeSingle();
+
+  if (existing?.id) {
+    return existing.id;
+  }
+
+  const { data: inserted, error } = await supabaseAdmin
+    .from('customers')
+    .insert([
+      {
+        email: customerInfo.email,
+        first_name: customerInfo.first_name,
+        last_name: customerInfo.last_name,
+        phone: customerInfo.phone,
+        marketing_emails: !!marketingConsent,
+        newsletter_subscribed: false,
+        email_verified: false
+      }
+    ])
+    .select('id')
+    .single();
+
+  if (error || !inserted?.id) {
+    throw new Error(`No se pudo crear/obtener cliente: ${error?.message || 'Error desconocido'}`);
+  }
+
+  return inserted.id;
+};
+
+const getOrderItemsData = async (items: CheckoutItemInput[], orderId: string) => {
+  const orderItems: Omit<OrderItem, 'id'>[] = [];
+  let subtotal = 0;
+
+  for (const item of items) {
+    const { data: product, error } = await supabaseAdmin
+      .from('products')
+      .select('id, name, main_image_url, price, stock_quantity, farmers!farmer_id (first_name, last_name, business_name)')
+      .eq('id', item.product_id)
+      .eq('is_available', true)
+      .single();
+
+    if (error || !product) {
+      throw new Error(`Producto no disponible: ${item.product_id}`);
+    }
+
+    if (typeof product.stock_quantity === 'number' && item.quantity > product.stock_quantity) {
+      throw new Error(`Stock insuficiente para ${product.name}`);
+    }
+
+    const unitPrice = Number(product.price ?? item.unit_price ?? 0);
+    const totalPrice = unitPrice * item.quantity;
+    subtotal += totalPrice;
+
+    const farmer = (product as { farmers?: { first_name?: string | null; last_name?: string | null; business_name?: string | null } | null }).farmers;
+    const farmerName =
+      farmer?.business_name ||
+      `${farmer?.first_name || ''} ${farmer?.last_name || ''}`.trim() ||
+      'Agricultor';
+
+    orderItems.push({
+      order_id: orderId,
+      product_id: item.product_id,
+      product_name: product.name,
+      product_image: product.main_image_url,
+      farmer_name: farmerName,
+      quantity: item.quantity,
+      unit_price: unitPrice,
+      total_price: totalPrice
+    });
+  }
+
+  return { orderItems, subtotal };
+};
+
+export const createOrderFromCheckout = async (payload: CheckoutPayload) => {
+  if (!Array.isArray(payload.items) || payload.items.length === 0) {
+    throw new Error('El pedido debe incluir al menos un producto');
+  }
+
+  const customerId = await findOrCreateCustomer(payload.customer_info, payload.marketing_consent);
+  const orderNumber = generateOrderNumber();
+  const estimatedDeliveryDate = calculateEstimatedDelivery();
+
+  const { data: insertedOrder, error: orderInsertError } = await supabaseAdmin
+    .from('orders')
+    .insert([
+      {
+        order_number: orderNumber,
+        customer_id: customerId,
+        customer_email: payload.customer_info.email,
+        customer_first_name: payload.customer_info.first_name,
+        customer_last_name: payload.customer_info.last_name,
+        customer_phone: payload.customer_info.phone,
+        shipping_address: payload.delivery_address.address,
+        shipping_city: payload.delivery_address.city,
+        shipping_postal_code: payload.delivery_address.postal_code,
+        shipping_province: payload.delivery_address.province,
+        shipping_notes: payload.delivery_address.delivery_notes || null,
+        subtotal: 0,
+        shipping_cost: 0,
+        tax_amount: 0,
+        total_amount: 0,
+        status: 'pending' as OrderStatus,
+        payment_status: (payload.payment_method === 'bizum' || payload.payment_method === 'transferencia' ? 'pending' : 'paid') as PaymentStatus,
+        payment_method: payload.payment_method,
+        estimated_delivery_date: estimatedDeliveryDate
+      }
+    ])
+    .select('*')
+    .single();
+
+  if (orderInsertError || !insertedOrder) {
+    throw new Error(`No se pudo crear la orden: ${orderInsertError?.message || 'Error desconocido'}`);
+  }
+
+  const { orderItems, subtotal } = await getOrderItemsData(payload.items, insertedOrder.id);
+  const shippingCost = subtotal > 50 ? 0 : subtotal <= 4 ? 3.9 : subtotal <= 10 ? 4.45 : subtotal <= 15 ? 5.9 : 10.95;
+
+  let discountAmount = 0;
+  let discountCodeUsed: string | null = null;
+
+  if (payload.discountCode) {
+    const validation = await validateDiscountCode({
+      code: payload.discountCode,
+      customerEmail: payload.customer_info.email,
+      subtotal
+    });
+
+    if (!validation.isValid) {
+      throw new Error(validation.error || 'Cupón inválido');
+    }
+
+    if (typeof validation.percentage === 'number') {
+      discountAmount = (subtotal * validation.percentage) / 100;
+      discountCodeUsed = payload.discountCode;
+    }
+  }
+
+  const finalSubtotal = Math.max(0, subtotal - discountAmount);
+  const totalAmount = finalSubtotal + shippingCost;
+
+  if (orderItems.length > 0) {
+    const { error: itemError } = await supabaseAdmin.from('order_items').insert(orderItems);
+    if (itemError) {
+      throw new Error(`No se pudieron guardar los productos del pedido: ${itemError.message}`);
+    }
+  }
+
+  const { error: updateOrderError } = await supabaseAdmin
+    .from('orders')
+    .update({
+      subtotal: finalSubtotal,
+      shipping_cost: shippingCost,
+      tax_amount: 0,
+      total_amount: totalAmount,
+      discount_code_used: discountCodeUsed,
+      discount_amount: discountAmount
+    })
+    .eq('id', insertedOrder.id);
+
+  if (updateOrderError) {
+    throw new Error(`No se pudo actualizar el total del pedido: ${updateOrderError.message}`);
+  }
+
+  await addTimelineEntry(insertedOrder.id, 'pending', 'Pedido recibido y en proceso de confirmación');
+
+  if (discountCodeUsed) {
+    await markDiscountCodeAsUsed(discountCodeUsed, insertedOrder.id);
+  }
+
+  return getOrderById(insertedOrder.id);
+};
+
+export const getOrderById = async (orderId: string) => {
+  const { data: order, error } = await supabaseAdmin
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .single();
+
+  if (error || !order) {
+    return null;
+  }
+
+  const [{ data: items }, { data: timeline }] = await Promise.all([
+    supabaseAdmin.from('order_items').select('*').eq('order_id', orderId).order('created_at', { ascending: true }),
+    supabaseAdmin.from('order_timeline').select('*').eq('order_id', orderId).order('created_at', { ascending: true })
+  ]);
+
+  return mapOrderForClient(order as OrderRow, (items || []) as OrderItem[], (timeline || []) as OrderTimelineEntry[]);
+};
+
+export const getAdminOrders = async (params: { status?: string; page?: number; limit?: number }) => {
+  const page = Math.max(1, params.page || 1);
+  const limit = Math.min(100, Math.max(1, params.limit || 20));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  let query = supabaseAdmin
+    .from('orders')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (params.status && params.status !== 'all') {
+    query = query.eq('status', params.status);
+  }
+
+  const { data, error, count } = await query;
+  if (error) {
+    throw new Error(`No se pudieron obtener pedidos: ${error.message}`);
+  }
+
+  const orders = await Promise.all((data || []).map((order) => getOrderById(order.id)));
+  return {
+    orders: orders.filter(Boolean),
+    pagination: {
+      page,
+      limit,
+      total: count || 0,
+      totalPages: count ? Math.ceil(count / limit) : 0
+    }
+  };
+};
+
+export const updateAdminOrder = async (
+  orderId: string,
+  payload: { status?: string; payment_status?: string; tracking_number?: string; notes?: string; updated_by?: string }
+) => {
+  const updateData: Record<string, unknown> = {
+    updated_at: new Date().toISOString()
+  };
+
+  if (payload.status) updateData.status = payload.status;
+  if (payload.payment_status) updateData.payment_status = payload.payment_status;
+  if (payload.tracking_number) updateData.tracking_number = payload.tracking_number;
+
+  const { error } = await supabaseAdmin.from('orders').update(updateData).eq('id', orderId);
+  if (error) {
+    throw new Error(`No se pudo actualizar el pedido: ${error.message}`);
+  }
+
+  if (payload.status) {
+    await addTimelineEntry(orderId, payload.status, payload.notes, payload.updated_by);
+  }
+
+  return getOrderById(orderId);
+};

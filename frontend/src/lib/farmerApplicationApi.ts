@@ -1,5 +1,3 @@
-import { apiClient } from './api';
-
 export interface FarmerApplicationData {
   first_name: string;
   last_name: string;
@@ -21,6 +19,12 @@ export interface FarmerApplicationData {
 
 export const farmerApplicationApi = {
   submit: (data: FarmerApplicationData) => 
-    apiClient.post('/farmer-applications', data),
+    fetch('/api/public/farmer-applications', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    }).then((response) => response.json()),
 };
 

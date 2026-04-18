@@ -1,7 +1,5 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface FarmerApplication {
   id: string;
@@ -32,7 +30,6 @@ interface FarmerApplication {
 }
 
 export default function FarmerApplicationsPage() {
-  const { admin } = useAuth();
   const [applications, setApplications] = useState<FarmerApplication[]>([]);
   const [approvedFarmers, setApprovedFarmers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,21 +41,43 @@ export default function FarmerApplicationsPage() {
     fetchData();
   }, [filter]);
 
+  const adminApiRequest = async <T,>(endpoint: string, options: RequestInit = {}): Promise<T> => {
+    const response = await fetch(`/api/admin${endpoint}`, {
+      ...options,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      }
+    });
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || 'Error en API admin');
+    }
+
+    return data as T;
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
       if (filter === 'pending') {
         const endpoint = '/farmer-applications?status=pending';
-        const response = await apiClient.get<FarmerApplication[]>(endpoint);
+        const response = await adminApiRequest<FarmerApplication[]>(endpoint);
         setApplications(response);
         setApprovedFarmers([]);
       } else if (filter === 'approved' || filter === 'rejected') {
-        const farmers = await apiClient.get<any[]>(`/farmers?status=${filter}`);
+        const farmers = await adminApiRequest<any[]>(`/farmers?status=${filter}`);
         setApprovedFarmers(farmers);
         setApplications([]);
       } else {
         // 'all' -> por simplicidad cargamos todas las aplicaciones
-        const response = await apiClient.get<FarmerApplication[]>(`/farmer-applications`);
+        const response = await adminApiRequest<FarmerApplication[]>(`/farmer-applications`);
         setApplications(response);
         setApprovedFarmers([]);
       }
@@ -72,8 +91,11 @@ export default function FarmerApplicationsPage() {
   const handleApprove = async (applicationId: string) => {
     try {
       setActionLoading(applicationId);
-      await apiClient.post(`/farmer-applications/${applicationId}/approve`, {
-        reviewed_by: admin?.id
+      await adminApiRequest(`/farmer-applications/${applicationId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          action: 'approve'
+        })
       });
       
       // Cambiar a la pestaña de aprobados y cerrar detalle
@@ -93,9 +115,12 @@ export default function FarmerApplicationsPage() {
   const handleReject = async (applicationId: string, reason: string) => {
     try {
       setActionLoading(applicationId);
-      await apiClient.post(`/farmer-applications/${applicationId}/reject`, {
-        reviewed_by: 'admin-user-id',
-        admin_notes: reason
+      await adminApiRequest(`/farmer-applications/${applicationId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          action: 'reject',
+          admin_notes: reason
+        })
       });
       
       // Actualizar la lista
@@ -115,7 +140,12 @@ export default function FarmerApplicationsPage() {
     try {
       if (!confirm('¿Seguro que deseas rechazar a este agricultor?')) return;
       setActionLoading(farmerId);
-      await apiClient.post(`/farmers/${farmerId}/reject`, {});
+      await adminApiRequest(`/farmers/${farmerId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: 'rejected'
+        })
+      });
       await fetchData();
       alert('Agricultor rechazado correctamente.');
     } catch (error) {

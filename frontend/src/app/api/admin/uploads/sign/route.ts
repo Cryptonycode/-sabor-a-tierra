@@ -1,12 +1,9 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getAuthenticatedAdminFromToken } from '@/lib/server/adminAuth';
 
 const ADMIN_COOKIE_NAME = 'admin_token';
-
-const getBackendApiUrl = () => {
-  return process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-};
 
 const sanitizeSegment = (value: string): string => {
   return value
@@ -39,17 +36,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'No autenticado' }, { status: 401 });
     }
 
-    const verifyResponse = await fetch(`${getBackendApiUrl()}/auth/verify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({}),
-      cache: 'no-store'
-    });
-
-    if (!verifyResponse.ok) {
+    const admin = await getAuthenticatedAdminFromToken(token);
+    if (!admin) {
       return NextResponse.json({ success: false, message: 'Token inválido' }, { status: 401 });
     }
 

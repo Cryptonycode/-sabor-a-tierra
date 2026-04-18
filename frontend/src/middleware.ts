@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const ADMIN_COOKIE_NAME = 'admin_token';
 
-const getBackendApiUrl = () => {
-  return process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-};
-
 const isPublicAdminPath = (pathname: string) => {
   return pathname === '/admin/login' || pathname === '/admin/unauthorized';
 };
@@ -29,13 +25,12 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    const verificationResponse = await fetch(`${getBackendApiUrl()}/auth/verify`, {
+    const verificationUrl = new URL('/api/auth/verify', request.url);
+    const verificationResponse = await fetch(verificationUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
+        cookie: request.headers.get('cookie') || ''
       },
-      body: JSON.stringify({}),
       cache: 'no-store'
     });
 

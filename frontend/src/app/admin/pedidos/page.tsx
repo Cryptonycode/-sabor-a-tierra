@@ -1,56 +1,12 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api';
-
-interface Order {
-  id: string;
-  order_number: string;
-  customer_id: string;
-  customer_email: string;
-  customer_name: string;
-  customer_phone?: string;
-  delivery_address: string;
-  delivery_city: string;
-  delivery_postal_code: string;
-  delivery_notes?: string;
-  total_amount: number;
-  subtotal: number;
-  tax_amount: number;
-  shipping_cost: number;
-  order_status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-  payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
-  payment_method?: string;
-  tracking_number?: string;
-  estimated_delivery?: string;
-  delivered_at?: string;
-  created_at: string;
-  updated_at: string;
-  items: OrderItem[];
-  timeline: OrderTimeline[];
-}
-
-interface OrderItem {
-  id: string;
-  product_id: string;
-  product_name: string;
-  product_image?: string;
-  farmer_name: string;
-  quantity: number;
-  unit_price: number;
-  total_price: number;
-}
-
-interface OrderTimeline {
-  id: string;
-  status: string;
-  notes?: string;
-  created_at: string;
-  created_by?: string;
-}
+import { orderService } from '@/services/orderService';
+import { Order, OrderTimelineEntry } from '@/types/order';
 
 export default function OrdersManagementPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -78,66 +34,14 @@ export default function OrdersManagementPage() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const endpoint = statusFilter === 'all' ? '/orders' : `/orders?status=${statusFilter}`;
-      const response = await apiClient.get<Order[]>(endpoint);
-      setOrders(response);
+      setError(null);
+      const response = await orderService.getAdminOrders({
+        status: statusFilter === 'all' ? undefined : statusFilter
+      });
+      setOrders(response.orders || []);
     } catch (error) {
-      console.error('Error fetching orders:', error);
-      // Mock data para desarrollo
-      setOrders([
-        {
-          id: '1',
-          order_number: 'ORD-2024-001',
-          customer_id: 'cust-1',
-          customer_email: 'cliente@email.com',
-          customer_name: 'Juan Pérez',
-          customer_phone: '+34 600 123 456',
-          delivery_address: 'Calle Mayor 123',
-          delivery_city: 'Madrid',
-          delivery_postal_code: '28001',
-          delivery_notes: 'Llamar al llegar',
-          total_amount: 45.50,
-          subtotal: 42.00,
-          tax_amount: 2.50,
-          shipping_cost: 1.00,
-          order_status: 'pending',
-          payment_status: 'paid',
-          payment_method: 'Tarjeta de crédito',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          items: [
-            {
-              id: '1',
-              product_id: 'prod-1',
-              product_name: 'Tomates Ecológicos',
-              product_image: 'https://images.unsplash.com/photo-1546470427-e9b62dcc7409?w=100&h=100&fit=crop',
-              farmer_name: 'Agricultor García',
-              quantity: 2,
-              unit_price: 15.00,
-              total_price: 30.00
-            },
-            {
-              id: '2',
-              product_id: 'prod-2',
-              product_name: 'Aceite de Oliva Virgen',
-              product_image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=100&h=100&fit=crop',
-              farmer_name: 'Almazara López',
-              quantity: 1,
-              unit_price: 12.00,
-              total_price: 12.00
-            }
-          ],
-          timeline: [
-            {
-              id: '1',
-              status: 'pending',
-              notes: 'Pedido recibido',
-              created_at: new Date().toISOString(),
-              created_by: 'Sistema'
-            }
-          ]
-        }
-      ]);
+      setError(error instanceof Error ? error.message : 'No se pudieron cargar los pedidos');
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -147,19 +51,24 @@ export default function OrdersManagementPage() {
     try {
       setActionLoading(orderId);
       
-      await apiClient.put(`/orders/${orderId}/status`, {
+      const updated = await orderService.updateAdminOrder(orderId, {
         status: newStatus,
-        notes: notes || `Estado cambiado a ${newStatus}`,
-        updated_by: 'admin-user-id'
+        notes: notes || `Estado cambiado a ${newStatus}`
       });
+      if (!updated?.success) {
+        throw new Error('No se pudo actualizar el pedido');
+      }
 
       // Si es enviado, solicitar número de seguimiento
       if (newStatus === 'shipped') {
         const trackingNumber = prompt('Introduce el número de seguimiento:');
         if (trackingNumber) {
-          await apiClient.put(`/orders/${orderId}`, {
+          const updatedTracking = await orderService.updateAdminOrder(orderId, {
             tracking_number: trackingNumber
           });
+          if (!updatedTracking?.success) {
+            throw new Error('No se pudo guardar el tracking');
+          }
         }
       }
 
@@ -181,10 +90,13 @@ export default function OrdersManagementPage() {
     try {
       setActionLoading(orderId);
       
-      await apiClient.put(`/orders/${orderId}/cancel`, {
-        reason: reason,
-        cancelled_by: 'admin-user-id'
+      const updated = await orderService.updateAdminOrder(orderId, {
+        status: 'cancelled',
+        notes: reason || 'Pedido cancelado por administración'
       });
+      if (!updated?.success) {
+        throw new Error('No se pudo cancelar el pedido');
+      }
 
       await fetchOrders();
       setSelectedOrder(null);
@@ -206,11 +118,13 @@ export default function OrdersManagementPage() {
       const refundAmount = amount || parseFloat(prompt('Cantidad a reembolsar:') || '0');
       if (refundAmount <= 0) return;
 
-      await apiClient.post(`/orders/${orderId}/refund`, {
-        amount: refundAmount,
-        reason: 'Reembolso procesado por administrador',
-        processed_by: 'admin-user-id'
+      const updated = await orderService.updateAdminOrder(orderId, {
+        payment_status: 'refunded',
+        notes: `Reembolso procesado por ${refundAmount.toFixed(2)} EUR`
       });
+      if (!updated?.success) {
+        throw new Error('No se pudo procesar el reembolso');
+      }
 
       await fetchOrders();
       setSelectedOrder(null);
@@ -242,6 +156,14 @@ export default function OrdersManagementPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-red-700">
+        Error al cargar pedidos: {error}
       </div>
     );
   }
@@ -439,7 +361,7 @@ export default function OrdersManagementPage() {
                 <div>
                   <h4 className="font-semibold text-gray-800 mb-3">Historial del Pedido</h4>
                   <div className="space-y-3">
-                    {selectedOrder.timeline.map((event) => (
+                    {selectedOrder.timeline.map((event: OrderTimelineEntry) => (
                       <div key={event.id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded">
                         <div className="w-3 h-3 bg-primary rounded-full mt-1"></div>
                         <div className="flex-1">
@@ -520,30 +442,6 @@ export default function OrdersManagementPage() {
                   </div>
                 )}
 
-                {/* Quick Actions */}
-                <div className="bg-white border rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-800 mb-3">Acciones Rápidas</h4>
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => alert('Funcionalidad de envío de email en desarrollo')}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm py-2 px-3 rounded"
-                    >
-                      📧 Enviar Email al Cliente
-                    </button>
-                    <button
-                      onClick={() => alert('Funcionalidad de impresión en desarrollo')}
-                      className="w-full bg-gray-600 hover:bg-gray-700 text-white text-sm py-2 px-3 rounded"
-                    >
-                      🖨️ Imprimir Etiqueta de Envío
-                    </button>
-                    <button
-                      onClick={() => alert('Funcionalidad de facturación en desarrollo')}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 px-3 rounded"
-                    >
-                      📄 Generar Factura
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

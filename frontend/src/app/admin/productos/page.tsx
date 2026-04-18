@@ -1,6 +1,5 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api';
 import ImageUpload from '@/components/ImageUpload';
 
 interface ProductVariant {
@@ -157,7 +156,7 @@ export default function ProductsManagementPage() {
   const fetchFarmers = async () => {
     try {
       console.log('🔄 Obteniendo agricultores...');
-      const response = await apiClient.get<any[]>('/farmers');
+      const response = await adminApiRequest<any[]>('/farmers');
       console.log('✅ Agricultores recibidos:', response);
       console.log('📊 Cantidad de agricultores:', response.length);
       setFarmers(response);

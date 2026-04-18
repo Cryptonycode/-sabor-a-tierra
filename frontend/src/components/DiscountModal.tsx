@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { apiClient } from '@/lib/api';
+import { discountService } from '@/services/discountService';
 import { useIsEligibleForFirstPurchaseOffer } from '@/hooks/useEligibilityCheck';
 
 interface DiscountModalProps {
@@ -28,9 +28,9 @@ export default function DiscountModal({ isOpen, onClose, onSubmitSuccess }: Disc
     }
     setLoading(true);
     try {
-      const res: any = await apiClient.post('/discounts/generate-first-purchase', { email });
+      const res: any = await discountService.registerCustomer({ email, marketing_emails: true });
       if (res?.success) {
-        setSuccessMsg('¡Código enviado a tu email!');
+        setSuccessMsg('¡Registro completado! Cupón de bienvenida generado.');
         
         // Marcar en localStorage que el usuario se registró y reclamó el descuento
         if (typeof window !== 'undefined') {

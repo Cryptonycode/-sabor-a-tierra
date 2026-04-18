@@ -64,6 +64,12 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       icon: '📧',
       description: 'Gestión de suscriptores'
     },
+    {
+      name: 'Descuentos',
+      href: '/admin/descuentos',
+      icon: '🏷️',
+      description: 'Cupones y promociones'
+    },
   ];
 
   return (

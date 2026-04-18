@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api';
+import { customerService } from '@/services/customerService';
 
 interface Customer {
   id: string;
@@ -13,7 +13,8 @@ interface Customer {
   default_address?: string;
   default_city?: string;
   default_postal_code?: string;
-  marketing_consent: boolean;
+  marketing_consent?: boolean;
+  marketing_emails?: boolean;
   is_active: boolean;
   total_orders: number;
   total_spent: number;
@@ -35,6 +36,7 @@ export default function CustomersManagementPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
 
@@ -45,57 +47,15 @@ export default function CustomersManagementPage() {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      let endpoint = '/customers';
-      const params = new URLSearchParams();
-      
-      if (searchTerm) params.append('search', searchTerm);
-      if (filterStatus !== 'all') params.append('status', filterStatus);
-      
-      if (params.toString()) endpoint += `?${params.toString()}`;
-      
-      const response = await apiClient.get<Customer[]>(endpoint);
-      setCustomers(response);
+      setError(null);
+      const response = await customerService.getAdminCustomers({
+        search: searchTerm || undefined,
+        status: filterStatus
+      });
+      setCustomers(response?.customers || []);
     } catch (error) {
-      console.error('Error fetching customers:', error);
-      // Mock data para desarrollo
-      setCustomers([
-        {
-          id: '1',
-          first_name: 'Juan',
-          last_name: 'Pérez',
-          email: 'juan@email.com',
-          phone: '+34 600 123 456',
-          birth_date: '1985-05-15',
-          gender: 'male',
-          default_address: 'Calle Mayor 123',
-          default_city: 'Madrid',
-          default_postal_code: '28001',
-          marketing_consent: true,
-          is_active: true,
-          total_orders: 12,
-          total_spent: 456.78,
-          last_order_date: '2024-01-15',
-          created_at: '2023-06-01',
-          updated_at: '2024-01-15'
-        },
-        {
-          id: '2',
-          first_name: 'María',
-          last_name: 'García',
-          email: 'maria@email.com',
-          phone: '+34 600 987 654',
-          default_address: 'Avenida Central 456',
-          default_city: 'Barcelona',
-          default_postal_code: '08001',
-          marketing_consent: false,
-          is_active: true,
-          total_orders: 8,
-          total_spent: 234.56,
-          last_order_date: '2024-01-10',
-          created_at: '2023-08-15',
-          updated_at: '2024-01-10'
-        }
-      ]);
+      setError(error instanceof Error ? error.message : 'No se pudieron cargar los clientes');
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
@@ -103,36 +63,23 @@ export default function CustomersManagementPage() {
 
   const fetchCustomerOrders = async (customerId: string) => {
     try {
-      const response = await apiClient.get<CustomerOrder[]>(`/customers/${customerId}/orders`);
-      setCustomerOrders(response);
+      const response = await customerService.getAdminCustomerById(customerId, true);
+      setCustomerOrders((response?.orders || []) as CustomerOrder[]);
     } catch (error) {
       console.error('Error fetching customer orders:', error);
-      // Mock data
-      setCustomerOrders([
-        {
-          id: '1',
-          order_number: 'ORD-2024-001',
-          total_amount: 45.50,
-          order_status: 'delivered',
-          created_at: '2024-01-15'
-        },
-        {
-          id: '2',
-          order_number: 'ORD-2024-002',
-          total_amount: 67.89,
-          order_status: 'processing',
-          created_at: '2024-01-20'
-        }
-      ]);
+      setCustomerOrders([]);
     }
   };
 
   const toggleCustomerStatus = async (customerId: string, newStatus: boolean) => {
     try {
-      await apiClient.put(`/customers/${customerId}`, {
+      const response = await customerService.updateAdminCustomer(customerId, {
         is_active: newStatus
       });
-      
+      if (!response?.success) {
+        alert(response?.message || 'Error al actualizar el estado del cliente.');
+        return;
+      }
       await fetchCustomers();
       alert(`Cliente ${newStatus ? 'activado' : 'desactivado'} con éxito.`);
     } catch (error) {
@@ -143,12 +90,14 @@ export default function CustomersManagementPage() {
 
   const sendMarketingEmail = async (customerId: string) => {
     try {
-      await apiClient.post(`/customers/${customerId}/send-marketing`, {
-        template: 'newsletter',
-        subject: 'Ofertas especiales para ti'
+      const response = await customerService.updateAdminCustomer(customerId, {
+        marketing_emails: true
       });
-      
-      alert('Email enviado con éxito.');
+      if (!response?.success) {
+        alert(response?.message || 'Error al actualizar consentimiento de marketing.');
+        return;
+      }
+      alert('Consentimiento de marketing actualizado.');
     } catch (error) {
       console.error('Error sending email:', error);
       alert('Error al enviar el email.');
@@ -181,6 +130,14 @@ export default function CustomersManagementPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-red-700">
+        Error al cargar clientes: {error}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -207,7 +164,7 @@ export default function CustomersManagementPage() {
           
           <select
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as any)}
+            onChange={(e) => setFilterStatus(e.target.value as 'all' | 'active' | 'inactive')}
             className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           >
             <option value="all">Todos</option>
@@ -274,7 +231,7 @@ export default function CustomersManagementPage() {
               <dl>
                 <dt className="text-sm font-medium text-gray-500 truncate">Suscritos Marketing</dt>
                 <dd className="text-lg font-medium text-gray-900">
-                  {customers.filter(c => c.marketing_consent).length}
+                  {customers.filter(c => (c.marketing_emails ?? c.marketing_consent)).length}
                 </dd>
               </dl>
             </div>
@@ -346,7 +303,7 @@ export default function CustomersManagementPage() {
                       }`}>
                         {customer.is_active ? 'Activo' : 'Inactivo'}
                       </span>
-                      {customer.marketing_consent && (
+                      {(customer.marketing_emails ?? customer.marketing_consent) && (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                           📧 Marketing
                         </span>
@@ -432,7 +389,7 @@ export default function CustomersManagementPage() {
 
                 {/* Actions */}
                 <div className="space-y-3">
-                  {selectedCustomer.marketing_consent && (
+                  {(selectedCustomer.marketing_emails ?? selectedCustomer.marketing_consent) && (
                     <button
                       onClick={() => sendMarketingEmail(selectedCustomer.id)}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"

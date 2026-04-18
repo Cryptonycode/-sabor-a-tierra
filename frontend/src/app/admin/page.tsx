@@ -1,51 +1,51 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-
-interface DashboardStats {
-  total_products: number;
-  total_orders: number;
-  total_customers: number;
-  total_farmers: number;
-  pending_applications: number;
-  total_revenue: number;
-  pending_orders: number;
-  low_stock_products: number;
-  recent_orders: any[];
-  recent_applications: any[];
-}
+import { adminService } from '@/services/adminService';
+import { AdminDashboardStats } from '@/types/admin';
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [alerts, setAlerts] = useState([
-    { id: 1, type: 'warning', message: '3 productos con stock bajo', time: '5 min' },
-    { id: 2, type: 'info', message: '2 nuevas solicitudes de agricultores', time: '10 min' },
-    { id: 3, type: 'success', message: '5 pedidos completados hoy', time: '1 hora' },
-  ]);
+  const [error, setError] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<Array<{ id: number; type: 'warning' | 'info' | 'success'; message: string; time: string }>>([]);
 
   useEffect(() => {
-    // Simular carga de datos - luego conectaremos con la API
     const fetchStats = async () => {
       try {
-        // const response = await adminApi.getDashboardStats();
-        // setStats(response);
-        
-        // Datos mock por ahora
-        setStats({
-          total_products: 24,
-          total_orders: 156,
-          total_customers: 89,
-          total_farmers: 12,
-          pending_applications: 3,
-          total_revenue: 15420.50,
-          pending_orders: 8,
-          low_stock_products: 3,
-          recent_orders: [],
-          recent_applications: []
-        });
+        setError(null);
+        const dashboardStats = await adminService.getDashboardStats();
+        setStats(dashboardStats);
+
+        const nextAlerts: Array<{ id: number; type: 'warning' | 'info' | 'success'; message: string; time: string }> = [];
+        if ((dashboardStats.low_stock_products ?? 0) > 0) {
+          nextAlerts.push({
+            id: 1,
+            type: 'warning',
+            message: `${dashboardStats.low_stock_products} productos con stock bajo`,
+            time: 'ahora'
+          });
+        }
+        if ((dashboardStats.pending_applications ?? 0) > 0) {
+          nextAlerts.push({
+            id: 2,
+            type: 'info',
+            message: `${dashboardStats.pending_applications} solicitudes de agricultores pendientes`,
+            time: 'ahora'
+          });
+        }
+        if ((dashboardStats.pending_orders ?? 0) === 0) {
+          nextAlerts.push({
+            id: 3,
+            type: 'success',
+            message: 'No hay pedidos pendientes',
+            time: 'ahora'
+          });
+        }
+        setAlerts(nextAlerts);
       } catch (error) {
-        console.error('Error loading dashboard stats:', error);
+        const message = error instanceof Error ? error.message : 'No se pudo cargar el dashboard';
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -58,6 +58,14 @@ export default function AdminDashboard() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-red-700">
+        Error al cargar el dashboard: {error}
       </div>
     );
   }
@@ -215,60 +223,26 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Activity */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">📊 Actividad Reciente</h2>
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">📊 Pedidos Recientes</h2>
+        {stats?.recent_orders?.length ? (
           <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-              <span className="text-sm text-gray-800">Nuevo pedido #1234</span>
-              <span className="text-sm text-gray-500">hace 5 min</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-              <span className="text-sm text-gray-800">Solicitud agricultor aprobada</span>
-              <span className="text-sm text-gray-500">hace 15 min</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-              <span className="text-sm text-gray-800">Producto actualizado</span>
-              <span className="text-sm text-gray-500">hace 1 hora</span>
-            </div>
+            {stats.recent_orders.map((order) => (
+              <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{order.order_number}</p>
+                  <p className="text-xs text-gray-500">{order.customer_email}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-gray-900">€{Number(order.total_amount).toFixed(2)}</p>
+                  <p className="text-xs text-gray-500">{order.status}</p>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
-
-        {/* Performance Metrics */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">📈 Métricas de Rendimiento</h2>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm">
-                <span>Tasa de Conversión</span>
-                <span>3.2%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                <div className="bg-green-500 h-2 rounded-full" style={{ width: '32%' }}></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm">
-                <span>Satisfacción Cliente</span>
-                <span>4.8/5</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                <div className="bg-blue-500 h-2 rounded-full" style={{ width: '96%' }}></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm">
-                <span>Tiempo Respuesta</span>
-                <span>2.3h</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                <div className="bg-yellow-500 h-2 rounded-full" style={{ width: '75%' }}></div>
-              </div>
-            </div>
-          </div>
-        </div>
+        ) : (
+          <p className="text-sm text-gray-500">No hay actividad reciente.</p>
+        )}
       </div>
     </div>
   );

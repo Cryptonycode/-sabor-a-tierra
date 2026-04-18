@@ -2,26 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { useCart } from '@/context/CartContext';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-
-interface CheckoutData {
-  customer_info: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-  };
-  delivery_address: {
-    address: string;
-    city: string;
-    postal_code: string;
-    province: string;
-    delivery_notes?: string;
-  };
-  payment_method: 'bizum' | 'transferencia';
-  marketing_consent: boolean;
-}
+import { discountService } from '@/services/discountService';
+import { orderService } from '@/services/orderService';
+import { CheckoutPayload } from '@/types/order';
 
 export default function CheckoutPage() {
   const { cart, clearCart, isLoading } = useCart();
@@ -35,7 +19,7 @@ export default function CheckoutPage() {
   const [mode, setMode] = useState<'choose' | 'guest' | 'login'>('choose');
   const [loginEmail, setLoginEmail] = useState('');
   const [magicSentTo, setMagicSentTo] = useState<string | null>(null);
-  const [formData, setFormData] = useState<CheckoutData>({
+  const [formData, setFormData] = useState<Omit<CheckoutPayload, 'items' | 'subtotal' | 'shipping_cost' | 'tax_amount' | 'total_amount'>>({
     customer_info: {
       first_name: '',
       last_name: '',
@@ -72,24 +56,24 @@ export default function CheckoutPage() {
     } catch {}
   }, [isLoading, cart.items.length, router]);
 
-  const handleInputChange = (section: keyof CheckoutData | 'payment_method', field: string, value: string | boolean) => {
+  const handleInputChange = (section: keyof typeof formData | 'payment_method', field: string, value: string | boolean) => {
     console.log(`handleInputChange llamado con: section=${section}, field=${field}, value=${value}`);
     if (section === 'payment_method') {
       setFormData(prev => {
-        const newState = { ...prev, payment_method: value as CheckoutData['payment_method'] };
+        const newState = { ...prev, payment_method: value as CheckoutPayload['payment_method'] };
         console.log('Nuevo estado (payment_method):', newState);
         return newState;
       });
     } else {
       setFormData(prev => {
-        const sectionData: any = prev[section as keyof Omit<CheckoutData, 'payment_method'>] || {};
+        const sectionData: Record<string, unknown> = (prev as Record<string, any>)[section] || {};
         const newState = {
           ...prev,
           [section]: {
             ...sectionData,
             [field]: value
           }
-        } as CheckoutData;
+        };
         console.log(`Nuevo estado (${section}):`, newState);
         return newState;
       });
@@ -164,7 +148,11 @@ export default function CheckoutPage() {
       setDiscountMessage('');
       const code = discountCodeInput.trim();
       if (!code) return;
-      const res: any = await apiClient.get(`/discounts/validate/${encodeURIComponent(code)}`);
+      const res = await discountService.validatePublic({
+        code,
+        customerEmail: formData.customer_info.email || undefined,
+        subtotal: cart.totalPrice
+      });
       if (res?.isValid && typeof res.percentage === 'number') {
         setAppliedDiscount({ code, percentage: res.percentage });
         setDiscountMessage(`¡Descuento del ${res.percentage}% aplicado!`);
@@ -184,7 +172,7 @@ export default function CheckoutPage() {
 
       const orderData = {
         items: cart.items.map(item => ({
-          product_id: item.id,
+          product_id: String(item.id),
           quantity: item.quantity,
           unit_price: item.price
         })),
@@ -199,8 +187,8 @@ export default function CheckoutPage() {
         discountCode: appliedDiscount?.code
       };
 
-      const response: any = await apiClient.post('/orders', orderData);
-      const orderId: string = response.id;
+      const order = await orderService.create(orderData);
+      const orderId: string = order.id;
 
       // Redirigir a página de confirmación (la limpieza del carrito se hará allí)
       router.push(`/order-confirmation/${orderId}`);

@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { useState } from 'react';
-import { apiClient } from '@/lib/api';
+import { discountService } from '@/services/discountService';
 import CartItem from './CartItem';
 
 export default function CartSidebar() {
@@ -43,7 +43,7 @@ export default function CartSidebar() {
       setDiscountMessage('');
       const code = discountCodeInput.trim();
       if (!code) return;
-      const res: any = await apiClient.get(`/discounts/validate/${encodeURIComponent(code)}`);
+      const res = await discountService.validatePublic({ code });
       if (res?.isValid && typeof res.percentage === 'number') {
         // Guardar en sessionStorage para que checkout lo recupere
         try {

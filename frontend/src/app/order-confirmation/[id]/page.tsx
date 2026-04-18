@@ -2,35 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { apiClient } from '@/lib/api';
 import { useCart } from '@/context/CartContext';
-
-interface Order {
-  id: string;
-  order_number: string;
-  customer_email: string;
-  customer_name: string;
-  delivery_address: string;
-  delivery_city: string;
-  delivery_postal_code: string;
-  total_amount: number;
-  order_status: string;
-  payment_status: string;
-  payment_method: string;
-  estimated_delivery: string;
-  created_at: string;
-  items: OrderItem[];
-}
-
-interface OrderItem {
-  id: string;
-  product_name: string;
-  product_image?: string;
-  farmer_name: string;
-  quantity: number;
-  unit_price: number;
-  total_price: number;
-}
+import { orderService } from '@/services/orderService';
+import { Order } from '@/types/order';
 
 export default function OrderConfirmationPage() {
   const params = useParams();
@@ -66,48 +40,11 @@ export default function OrderConfirmationPage() {
   const fetchOrder = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get<Order>(`/orders/${orderId}`);
+      const response = await orderService.getById(orderId);
       setOrder(response);
     } catch (error) {
       console.error('Error fetching order:', error);
       setError('No se pudo cargar la información del pedido.');
-      
-      // Mock data para desarrollo
-      setOrder({
-        id: orderId,
-        order_number: 'ORD-2024-001',
-        customer_email: 'cliente@email.com',
-        customer_name: 'Juan Pérez',
-        delivery_address: 'Calle Mayor 123',
-        delivery_city: 'Madrid',
-        delivery_postal_code: '28001',
-        total_amount: 67.89,
-        order_status: 'confirmed',
-        payment_status: 'paid',
-        payment_method: 'card',
-        estimated_delivery: '2024-01-25',
-        created_at: new Date().toISOString(),
-        items: [
-          {
-            id: '1',
-            product_name: 'Tomates Ecológicos',
-            product_image: 'https://images.unsplash.com/photo-1546470427-e9b62dcc7409?w=100&h=100&fit=crop',
-            farmer_name: 'Agricultor García',
-            quantity: 2,
-            unit_price: 15.00,
-            total_price: 30.00
-          },
-          {
-            id: '2',
-            product_name: 'Aceite de Oliva Virgen',
-            product_image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=100&h=100&fit=crop',
-            farmer_name: 'Almazara López',
-            quantity: 1,
-            unit_price: 12.00,
-            total_price: 12.00
-          }
-        ]
-      });
     } finally {
       setLoading(false);
     }
@@ -305,7 +242,7 @@ export default function OrderConfirmationPage() {
               <div className="text-3xl mb-2">🚚</div>
               <h3 className="font-semibold text-gray-900">Entrega Estimada</h3>
               <p className="text-sm text-gray-600">
-                {new Date(order.estimated_delivery).toLocaleDateString('es-ES', {
+                {new Date(order.estimated_delivery || order.estimated_delivery_date || order.created_at).toLocaleDateString('es-ES', {
                   weekday: 'long',
                   year: 'numeric',
                   month: 'long',
