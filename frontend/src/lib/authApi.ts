@@ -24,13 +24,31 @@ export interface AuthResponse {
 class AuthAPI {
   private TOKEN_KEY = 'admin_token';
   private ADMIN_KEY = 'admin_user';
+  private NEXT_AUTH_BASE = '/api/admin/auth';
+
+  private async requestNextAuth<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const response = await fetch(`${this.NEXT_AUTH_BASE}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      },
+      credentials: 'include'
+    });
+
+    const data = await response.json();
+    return data as T;
+  }
 
   /**
    * Login de administrador
    */
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      const response = await api.post<AuthResponse>('/auth/login', credentials);
+      const response = await this.requestNextAuth<AuthResponse>('/login', {
+        method: 'POST',
+        body: JSON.stringify(credentials)
+      });
       
       if (response.success && response.token && response.admin) {
         // Guardar token y datos del admin en localStorage
@@ -53,6 +71,9 @@ class AuthAPI {
    * Logout
    */
   logout(): void {
+    this.requestNextAuth('/logout', { method: 'POST' }).catch((error) => {
+      console.error('Error limpiando cookie de sesión:', error);
+    });
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.ADMIN_KEY);
     localStorage.removeItem('isAuthenticated');
@@ -87,15 +108,9 @@ class AuthAPI {
    */
   async verifyToken(): Promise<{ valid: boolean; admin?: AdminUser }> {
     try {
-      const token = this.getToken();
-      if (!token) {
-        return { valid: false };
-      }
-
-      const response = await api.post<{ success: boolean; admin?: AdminUser }>('/auth/verify', {}, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+      const response = await this.requestNextAuth<{ success: boolean; admin?: AdminUser; message?: string }>('/verify', {
+        method: 'POST',
+        body: JSON.stringify({})
       });
 
       if (response.success && response.admin) {
@@ -175,15 +190,8 @@ class AuthAPI {
    */
   async getMe(): Promise<{ success: boolean; admin?: AdminUser; message?: string }> {
     try {
-      const token = this.getToken();
-      if (!token) {
-        return { success: false, message: 'No autenticado' };
-      }
-
-      const response = await api.get<{ success: boolean; admin?: AdminUser }>('/auth/me', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+      const response = await this.requestNextAuth<{ success: boolean; admin?: AdminUser; message?: string }>('/me', {
+        method: 'GET'
       });
 
       if (response.success && response.admin) {
