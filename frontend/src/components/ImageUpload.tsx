@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
 import Image from 'next/image';
-import { authAPI } from '@/lib/authApi';
+import imageCompression from 'browser-image-compression';
 
 interface ImageUploadProps {
   currentImageUrl?: string;
@@ -11,6 +11,33 @@ interface ImageUploadProps {
   requiresAuth?: boolean; // por defecto true
   responseKey?: 'publicUrl' | 'path'; // clave de respuesta para extraer el valor
 }
+
+interface UploadTargetConfig {
+  bucket: string;
+  folder?: string;
+}
+
+const resolveUploadTarget = (uploadUrl: string): UploadTargetConfig => {
+  if (uploadUrl.includes('/uploads/product-image')) {
+    return { bucket: 'productos' };
+  }
+
+  if (uploadUrl.includes('/uploads/farmer-application')) {
+    return { bucket: 'uploads-pendientes', folder: 'pending' };
+  }
+
+  return { bucket: 'productos' };
+};
+
+const buildPublicUrl = (bucket: string, path: string): string => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) {
+    throw new Error('Falta NEXT_PUBLIC_SUPABASE_URL para construir URL pública');
+  }
+
+  const normalizedBase = supabaseUrl.replace(/\/+$/, '');
+  return `${normalizedBase}/storage/v1/object/public/${bucket}/${path}`;
+};
 
 export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 'Imagen', uploadUrl = '/uploads/product-image', requiresAuth = true, responseKey = 'publicUrl' }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
@@ -37,37 +64,63 @@ export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 
 
     // Crear preview local
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
 
-    // Subir a servidor
+    // Subida directa a Supabase con URL firmada
     setUploading(true);
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('image', file);
-      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-      const target = uploadUrl.startsWith('http') ? uploadUrl : `${base}${uploadUrl}`;
-      const token = requiresAuth ? authAPI.getToken() : null;
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const response = await fetch(target, {
-        method: 'POST',
-        body: formData,
-        credentials: requiresAuth ? 'include' : 'same-origin',
-        headers: requiresAuth ? headers : undefined,
+      // Comprimir y convertir en cliente para evitar procesamiento serverless en Vercel
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 1.8,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+        initialQuality: 0.82,
+        fileType: 'image/webp'
       });
 
-      const data = await response.json();
+      reader.onloadend = () => {
+        setPreview(reader.result as string);
+      };
+      reader.readAsDataURL(compressed);
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Error al subir la imagen');
+      const targetConfig = resolveUploadTarget(uploadUrl);
+      const signEndpoint = requiresAuth ? '/api/admin/uploads/sign' : '/api/public/uploads/sign';
+      const signedResponse = await fetch(signEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: requiresAuth ? 'include' : 'same-origin',
+        body: JSON.stringify({
+          fileName: file.name,
+          bucket: targetConfig.bucket,
+          contentType: compressed.type || 'image/webp',
+          folder: targetConfig.folder
+        })
+      });
+
+      const signedData = await signedResponse.json();
+      if (!signedResponse.ok || !signedData.success || !signedData.signedUrl || !signedData.path) {
+        throw new Error(signedData.message || 'No se pudo obtener URL firmada');
       }
 
-      // Notificar al componente padre con la clave configurada
-      const value = data?.[responseKey];
+      const uploadResponse = await fetch(signedData.signedUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': compressed.type || 'image/webp'
+        },
+        body: compressed
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Error subiendo archivo a Supabase Storage');
+      }
+
+      const payload = {
+        path: signedData.path as string,
+        publicUrl: buildPublicUrl(signedData.bucket as string, signedData.path as string)
+      };
+
+      const value = payload[responseKey];
       onImageUploaded(value);
     } catch (err) {
       console.error('Error subiendo imagen:', err);

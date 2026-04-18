@@ -17,7 +17,6 @@ import farmerApplicationRoutes from './routes/farmerApplicationRoutes';
 import newsletterRoutes from './routes/newsletterRoutes';
 import adminRoutes from './routes/adminRoutes';
 import authRoutes from './routes/authRoutes';
-import uploadsRoutes from './routes/uploadsRoutes';
 import discountRoutes from './routes/discountRoutes';
 import variantRoutes from './routes/variantRoutes';
 
@@ -90,7 +89,6 @@ if (hasFacebookOAuth) {
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api', variantRoutes); // Rutas de variantes de productos
-app.use('/api/uploads', uploadsRoutes); // Rutas de subida de imágenes
 app.use('/api/discounts', discountRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/customers', customerRoutes);
