@@ -236,3 +236,4 @@ FRONTEND_URL=https://tudominio.com
 *Commit base de recuperación: d42e201*
 *Diseño preservado desde: 6e7e793*
 
+

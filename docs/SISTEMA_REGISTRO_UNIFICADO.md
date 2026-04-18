@@ -302,3 +302,4 @@ Para cualquier duda sobre el sistema implementado, revisar:
 - `backend/src/services/emailService.ts` - Envío de emails
 - `frontend/src/components/ClientLayoutWrapper.tsx` - Control de visibilidad
 
+

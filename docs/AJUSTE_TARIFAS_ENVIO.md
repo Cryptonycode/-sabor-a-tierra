@@ -299,3 +299,4 @@ El sistema ahora calcula los gastos de envío **exclusivamente** según el peso 
 *Documento generado: 2026-01-16*
 *Implementación completa y verificada*
 
+

@@ -362,3 +362,4 @@ product.farmer.name ?? 'Default'  // Puede crashear si farmer es undefined
 
 **Sistema de detalle de producto 100% funcional y robusto.**
 
+

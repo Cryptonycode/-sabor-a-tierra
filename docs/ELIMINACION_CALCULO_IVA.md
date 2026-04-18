@@ -182,3 +182,4 @@ Total:           €45.49
 *Documento generado: 2026-01-16*
 *Cambios aplicados sobre la recuperación de lógica de negocio*
 
+

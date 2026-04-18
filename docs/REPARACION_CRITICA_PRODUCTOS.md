@@ -178,3 +178,4 @@ La página de productos ahora:
 
 **El sistema está completamente funcional y listo para usar.**
 
+

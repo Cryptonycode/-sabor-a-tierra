@@ -422,3 +422,4 @@ El sistema de marketing está:
 
 **Próximo paso:** Configurar servicio de email real (SendGrid, Mailgun, etc.)
 
+

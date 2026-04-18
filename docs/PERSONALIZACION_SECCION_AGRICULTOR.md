@@ -377,3 +377,4 @@ gap-6 md:gap-8              // Espaciado adaptativo
 
 **Conexión productor-consumidor fortalecida** 🧑‍🌾 → 🛒 → 😊
 
+

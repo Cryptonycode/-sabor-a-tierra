@@ -327,3 +327,4 @@ const categories = [
 **Complejidad reducida:** 50%  
 **Mejora en UX:** Significativa 🚀
 
+

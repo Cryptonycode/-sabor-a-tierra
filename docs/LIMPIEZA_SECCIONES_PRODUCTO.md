@@ -303,3 +303,4 @@ Si en el futuro se necesita:
 
 **Conservación/Temporada:** Incluir en descripción corta o badges visuales
 
+
