@@ -24,8 +24,17 @@ export interface AuthResponse {
 }
 
 class AuthService {
-  private JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
   private JWT_EXPIRES_IN = '24h';
+
+  private getJwtSecret(): string {
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET no está configurado');
+    }
+
+    return jwtSecret;
+  }
 
   /**
    * Autenticar administrador
@@ -72,7 +81,7 @@ class AuthService {
           email: admin.email, 
           role: admin.role 
         },
-        this.JWT_SECRET as string,
+        this.getJwtSecret(),
         { expiresIn: this.JWT_EXPIRES_IN } as SignOptions
       );
 
@@ -107,7 +116,7 @@ class AuthService {
    */
   verifyToken(token: string): { valid: boolean; admin?: any; error?: string } {
     try {
-      const decoded = jwt.verify(token, this.JWT_SECRET) as any;
+      const decoded = jwt.verify(token, this.getJwtSecret()) as any;
       return {
         valid: true,
         admin: decoded

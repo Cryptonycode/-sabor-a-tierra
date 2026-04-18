@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { ProductService } from '../services/productService';
+import { requireAuth, requireAdmin } from '../middleware/authMiddleware';
 
 const router = Router();
 
@@ -43,7 +44,7 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/admin/products - Obtener todos los productos para admin (incluye inactivos y borradores)
-router.get('/admin/list', async (req: Request, res: Response) => {
+router.get('/admin/list', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const products = await ProductService.getAllProducts(true);
     return res.json(products);
@@ -77,7 +78,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/products - Crear nuevo producto
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const productData = req.body;
     const product = await ProductService.createProduct(productData);
@@ -92,14 +93,7 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // PUT /api/products/:id - Actualizar producto
-router.put('/:id', async (req: Request, res: Response) => {
-  // ==========================================================
-// INICIO DEL CÓDIGO DE DEPURACIÓN DEFINITIVO
-// ==========================================================
-console.log('--- DEBUG: Petición PUT a /api/products/:id RECIBIDA ---');
-console.log('--- DATOS CRUDOS RECIBIDOS EN req.body.variants: ---');
-console.log(req.body.variants);
-// ==========================================================
+router.put('/:id', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     
     const { id } = req.params;
@@ -116,7 +110,7 @@ console.log(req.body.variants);
 });
 
 // DELETE /api/products/:id - Eliminar producto
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await ProductService.deleteProduct(id);

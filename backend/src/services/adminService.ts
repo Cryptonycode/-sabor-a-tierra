@@ -1,13 +1,16 @@
 import { supabaseAdmin } from '../config/supabase';
-import { Admin, DashboardStats } from '../types/database';
+import { Admin, AdminPublic, DashboardStats } from '../types/database';
 import bcrypt from 'bcryptjs';
+import { sanitizeAdmin, sanitizeAdmins } from '../utils/adminSanitizer';
+
+const ADMIN_PUBLIC_SELECT = 'id, email, first_name, last_name, role, is_active, permissions, created_by, created_at, updated_at, last_login_at';
 
 export class AdminService {
   // Obtener todos los administradores
-  static async getAllAdmins(): Promise<Admin[]> {
+  static async getAllAdmins(): Promise<AdminPublic[]> {
     const { data, error } = await supabaseAdmin
       .from('admins')
-      .select('*')
+      .select(ADMIN_PUBLIC_SELECT)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -18,7 +21,24 @@ export class AdminService {
   }
 
   // Obtener administrador por ID
-  static async getAdminById(id: string): Promise<Admin | null> {
+  static async getAdminById(id: string): Promise<AdminPublic | null> {
+    const { data, error } = await supabaseAdmin
+      .from('admins')
+      .select(ADMIN_PUBLIC_SELECT)
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      throw new Error(`Error al obtener administrador: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  private static async getAdminWithPasswordById(id: string): Promise<Admin | null> {
     const { data, error } = await supabaseAdmin
       .from('admins')
       .select('*')
@@ -35,8 +55,7 @@ export class AdminService {
     return data;
   }
 
-  // Obtener administrador por email
-  static async getAdminByEmail(email: string): Promise<Admin | null> {
+  private static async getAdminWithPasswordByEmail(email: string): Promise<Admin | null> {
     const { data, error } = await supabaseAdmin
       .from('admins')
       .select('*')
@@ -62,7 +81,7 @@ export class AdminService {
     role: Admin['role'];
     permissions?: string[];
     created_by: string;
-  }): Promise<Admin> {
+  }): Promise<AdminPublic> {
     const hashedPassword = await bcrypt.hash(adminData.password, 10);
 
     const insertData = {
@@ -79,7 +98,7 @@ export class AdminService {
     const { data, error } = await supabaseAdmin
       .from('admins')
       .insert([insertData])
-      .select()
+      .select(ADMIN_PUBLIC_SELECT)
       .single();
 
     if (error) {
@@ -90,7 +109,7 @@ export class AdminService {
   }
 
   // Actualizar administrador
-  static async updateAdmin(id: string, updateData: Partial<Admin>): Promise<Admin> {
+  static async updateAdmin(id: string, updateData: Partial<Admin>): Promise<AdminPublic> {
     // Si se está actualizando la contraseña, hashearla
     if (updateData.password_hash) {
       updateData.password_hash = await bcrypt.hash(updateData.password_hash, 10);
@@ -100,7 +119,7 @@ export class AdminService {
       .from('admins')
       .update({ ...updateData, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .select()
+      .select(ADMIN_PUBLIC_SELECT)
       .single();
 
     if (error) {
@@ -123,7 +142,7 @@ export class AdminService {
   }
 
   // Activar/Desactivar administrador
-  static async toggleAdminStatus(id: string, isActive: boolean): Promise<Admin> {
+  static async toggleAdminStatus(id: string, isActive: boolean): Promise<AdminPublic> {
     return this.updateAdmin(id, { is_active: isActive });
   }
 
@@ -136,20 +155,20 @@ export class AdminService {
   }
 
   // Verificar contraseña
-  static async verifyPassword(email: string, password: string): Promise<Admin | null> {
-    const admin = await this.getAdminByEmail(email);
+  static async verifyPassword(email: string, password: string): Promise<AdminPublic | null> {
+    const admin = await this.getAdminWithPasswordByEmail(email);
     
     if (!admin || !admin.is_active) {
       return null;
     }
 
     const isValid = await bcrypt.compare(password, admin.password_hash);
-    return isValid ? admin : null;
+    return isValid ? sanitizeAdmin(admin) : null;
   }
 
   // Cambiar contraseña
   static async changePassword(id: string, currentPassword: string, newPassword: string): Promise<void> {
-    const admin = await this.getAdminById(id);
+    const admin = await this.getAdminWithPasswordById(id);
     if (!admin) {
       throw new Error('Administrador no encontrado');
     }
@@ -163,10 +182,10 @@ export class AdminService {
   }
 
   // Buscar administradores
-  static async searchAdmins(query: string): Promise<Admin[]> {
+  static async searchAdmins(query: string): Promise<AdminPublic[]> {
     const { data, error } = await supabaseAdmin
       .from('admins')
-      .select('*')
+      .select(ADMIN_PUBLIC_SELECT)
       .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%`)
       .order('created_at', { ascending: false });
 
@@ -174,14 +193,14 @@ export class AdminService {
       throw new Error(`Error al buscar administradores: ${error.message}`);
     }
 
-    return data || [];
+    return sanitizeAdmins(data || []);
   }
 
   // Obtener administradores activos
-  static async getActiveAdmins(): Promise<Admin[]> {
+  static async getActiveAdmins(): Promise<AdminPublic[]> {
     const { data, error } = await supabaseAdmin
       .from('admins')
-      .select('*')
+      .select(ADMIN_PUBLIC_SELECT)
       .eq('is_active', true)
       .order('created_at', { ascending: false });
 

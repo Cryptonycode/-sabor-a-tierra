@@ -4,7 +4,7 @@ import { VariantService } from '../services/variantService';
 const router = Router();
 
 // GET /api/products/:productId/variants - Obtener todas las variantes de un producto
-router.get('/:productId/variants', async (req: Request, res: Response) => {
+router.get('/products/:productId/variants', async (req: Request, res: Response) => {
   try {
     const { productId } = req.params;
     const variants = await VariantService.getVariantsByProductId(productId);
@@ -36,7 +36,7 @@ router.get('/variants/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/products/:productId/variants - Crear nueva variante
-router.post('/:productId/variants', async (req: Request, res: Response) => {
+router.post('/products/:productId/variants', async (req: Request, res: Response) => {
   try {
     const { productId } = req.params;
     const variantData = { ...req.body, product_id: productId };
@@ -83,7 +83,7 @@ router.delete('/variants/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/products/:productId/variants/batch - Crear múltiples variantes
-router.post('/:productId/variants/batch', async (req: Request, res: Response) => {
+router.post('/products/:productId/variants/batch', async (req: Request, res: Response) => {
   try {
     const { productId } = req.params;
     const variants = req.body.variants.map((v: any) => ({ ...v, product_id: productId }));

@@ -19,9 +19,14 @@ import adminRoutes from './routes/adminRoutes';
 import authRoutes from './routes/authRoutes';
 import uploadsRoutes from './routes/uploadsRoutes';
 import discountRoutes from './routes/discountRoutes';
+import variantRoutes from './routes/variantRoutes';
 
 // Configuración de variables de entorno
 dotenv.config();
+
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET es obligatorio para iniciar el backend');
+}
 
 // Configuración de Express
 const app = express();
@@ -84,8 +89,7 @@ if (hasFacebookOAuth) {
 // Rutas de la API
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
-app.use('/api/products', require('./routes/variantRoutes').default); // Rutas de variantes
-app.use('/api', require('./routes/variantRoutes').default); // Rutas de variantes por ID
+app.use('/api', variantRoutes); // Rutas de variantes de productos
 app.use('/api/uploads', uploadsRoutes); // Rutas de subida de imágenes
 app.use('/api/discounts', discountRoutes);
 app.use('/api/orders', orderRoutes);

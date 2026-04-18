@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { AdminService } from '../services/adminService';
 import { requireAuth, requireAdmin, requireSuperAdmin } from '../middleware/authMiddleware';
+import { sanitizeAdmin, sanitizeAdmins } from '../utils/adminSanitizer';
 
 const router = Router();
 
@@ -78,7 +79,7 @@ router.get('/admins', requireAuth, requireSuperAdmin, async (req: Request, res: 
       admins = await AdminService.getAllAdmins();
     }
     
-    return res.json(admins);
+    return res.json(sanitizeAdmins(admins));
   } catch (error) {
     console.error('Error al obtener administradores:', error);
     return res.status(500).json({ 
@@ -98,7 +99,7 @@ router.get('/admins/:id', requireAuth, requireSuperAdmin, async (req: Request, r
       return res.status(404).json({ error: 'Administrador no encontrado' });
     }
 
-    return res.json(admin);
+    return res.json(sanitizeAdmin(admin));
   } catch (error) {
     console.error('Error al obtener administrador:', error);
     return res.status(500).json({ 
@@ -113,7 +114,7 @@ router.post('/admins', requireAuth, requireSuperAdmin, async (req: Request, res:
   try {
     const adminData = req.body;
     const admin = await AdminService.createAdmin(adminData);
-    return res.status(201).json(admin);
+    return res.status(201).json(sanitizeAdmin(admin));
   } catch (error) {
     console.error('Error al crear administrador:', error);
     return res.status(500).json({ 
@@ -129,7 +130,7 @@ router.put('/admins/:id', requireAuth, requireSuperAdmin, async (req: Request, r
     const { id } = req.params;
     const updateData = req.body;
     const admin = await AdminService.updateAdmin(id, updateData);
-    return res.json(admin);
+    return res.json(sanitizeAdmin(admin));
   } catch (error) {
     console.error('Error al actualizar administrador:', error);
     return res.status(500).json({ 
@@ -165,7 +166,7 @@ router.post('/admins/:id/toggle-status', requireAuth, requireSuperAdmin, async (
     }
 
     const admin = await AdminService.toggleAdminStatus(id, is_active);
-    return res.json(admin);
+    return res.json(sanitizeAdmin(admin));
   } catch (error) {
     console.error('Error al cambiar estado del administrador:', error);
     return res.status(500).json({ 
@@ -178,15 +179,21 @@ router.post('/admins/:id/toggle-status', requireAuth, requireSuperAdmin, async (
 // POST /api/admin/change-password - Cambiar contraseña
 router.post('/change-password', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { admin_id, current_password, new_password } = req.body;
+    const { current_password, new_password } = req.body;
     
-    if (!admin_id || !current_password || !new_password) {
-      return res.status(400).json({ 
-        error: 'admin_id, current_password y new_password son requeridos' 
+    if (!req.admin) {
+      return res.status(401).json({
+        error: 'Autenticación requerida'
       });
     }
 
-    await AdminService.changePassword(admin_id, current_password, new_password);
+    if (!current_password || !new_password) {
+      return res.status(400).json({ 
+        error: 'current_password y new_password son requeridos' 
+      });
+    }
+
+    await AdminService.changePassword(req.admin.id, current_password, new_password);
     return res.json({ message: 'Contraseña cambiada exitosamente' });
   } catch (error) {
     console.error('Error al cambiar contraseña:', error);
@@ -215,7 +222,7 @@ router.post('/verify-password', async (req: Request, res: Response) => {
     // Actualizar último login
     await AdminService.updateLastLogin(admin.id);
     
-    return res.json(admin);
+    return res.json(sanitizeAdmin(admin));
   } catch (error) {
     console.error('Error al verificar contraseña:', error);
     return res.status(500).json({ 
@@ -230,7 +237,7 @@ router.get('/search/:query', requireAuth, requireSuperAdmin, async (req: Request
   try {
     const { query } = req.params;
     const admins = await AdminService.searchAdmins(query);
-    return res.json(admins);
+    return res.json(sanitizeAdmins(admins));
   } catch (error) {
     console.error('Error al buscar administradores:', error);
     return res.status(500).json({ 

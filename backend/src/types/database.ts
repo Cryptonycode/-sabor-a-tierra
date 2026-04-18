@@ -40,6 +40,8 @@ export interface Admin {
   updated_at: string;
 }
 
+export type AdminPublic = Omit<Admin, 'password_hash'>;
+
 // 3. AGRICULTORES
 export interface Farmer {
   id: string;
@@ -199,8 +201,8 @@ export interface NewsletterSubscription {
   updated_at: string;
 }
 
-// 8. APLICACIONES DE AGRICULTORES
-export interface FarmerApplication {
+// Legacy: mantener para compatibilidad puntual, no usar como contrato canónico.
+export interface FarmerApplicationLegacy {
   id: string;
   first_name: string;
   last_name: string;
