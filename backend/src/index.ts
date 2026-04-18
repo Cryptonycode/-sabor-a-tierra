@@ -8,10 +8,6 @@ import { Strategy as FacebookStrategy } from 'passport-facebook';
 // Importar configuración de Supabase
 import './config/supabase';
 
-// Importar rutas
-import orderRoutes from './routes/orderRoutes';
-import adminRoutes from './routes/adminRoutes';
-
 // Configuración de variables de entorno
 dotenv.config();
 
@@ -76,10 +72,6 @@ if (hasFacebookOAuth) {
 } else {
   console.warn('⚠️  Facebook OAuth no configurado. Defina FACEBOOK_APP_ID y FACEBOOK_APP_SECRET para habilitarlo.');
 }
-
-// Rutas de la API
-app.use('/api/orders', orderRoutes);
-app.use('/api/admin', adminRoutes);
 
 // Ruta básica
 app.get('/', (req, res) => {
