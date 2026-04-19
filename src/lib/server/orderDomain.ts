@@ -77,7 +77,7 @@ const findOrCreateCustomer = async (
         email: customerInfo.email,
         first_name: customerInfo.first_name,
         last_name: customerInfo.last_name,
-        phone: customerInfo.phone,
+        phone: customerInfo.phone || null, // Aseguramos null en vez de undefined
         marketing_emails: !!marketingConsent,
         newsletter_subscribed: false,
         email_verified: false
@@ -87,6 +87,7 @@ const findOrCreateCustomer = async (
     .single();
 
   if (error || !inserted?.id) {
+    console.error("❌ DB Error (customers):", error);
     throw new Error(`No se pudo crear/obtener cliente: ${error?.message || 'Error desconocido'}`);
   }
 
@@ -94,44 +95,46 @@ const findOrCreateCustomer = async (
 };
 
 const getOrderItemsData = async (items: CheckoutItemInput[], orderId: string) => {
-  const orderItems: Omit<OrderItem, 'id'>[] = [];
+  const orderItems = [];
   let subtotal = 0;
 
   for (const item of items) {
+    const realProductId = item.product_id.length > 36 
+      ? item.product_id.substring(0, 36) 
+      : item.product_id;
+
     const { data: product, error } = await supabaseAdmin
       .from('products')
-      .select('id, name, main_image_url, price, stock_quantity, farmers!farmer_id (first_name, last_name, business_name)')
-      .eq('id', item.product_id)
-      .eq('is_available', true)
-      .single();
+      .select('id, name, price, is_available')
+      .eq('id', realProductId)
+      .maybeSingle();
 
-    if (error || !product) {
-      throw new Error(`Producto no disponible: ${item.product_id}`);
+    if (error) {
+      console.error(`❌ DB Error buscando producto ${realProductId}:`, error);
+      throw new Error(`Error de BD con el producto ${realProductId}: ${error.message}`);
     }
 
-    if (typeof product.stock_quantity === 'number' && item.quantity > product.stock_quantity) {
-      throw new Error(`Stock insuficiente para ${product.name}`);
+    if (!product) {
+      throw new Error(`El producto con ID ${realProductId} no existe en la base de datos.`);
+    }
+
+    if (product.is_available !== true) {
+      throw new Error(`El producto "${product.name}" ya no está disponible para su compra.`);
     }
 
     const unitPrice = Number(product.price ?? item.unit_price ?? 0);
     const totalPrice = unitPrice * item.quantity;
     subtotal += totalPrice;
 
-    const farmer = (product as { farmers?: { first_name?: string | null; last_name?: string | null; business_name?: string | null } | null }).farmers;
-    const farmerName =
-      farmer?.business_name ||
-      `${farmer?.first_name || ''} ${farmer?.last_name || ''}`.trim() ||
-      'Agricultor';
-
     orderItems.push({
       order_id: orderId,
-      product_id: item.product_id,
+      product_id: realProductId,
       product_name: product.name,
-      product_image: product.main_image_url,
-      farmer_name: farmerName,
       quantity: item.quantity,
       unit_price: unitPrice,
-      total_price: totalPrice
+      total_price: totalPrice,
+      // 👇 AQUÍ ESTÁ LA SOLUCIÓN. La base de datos EXIGE un texto aquí 👇
+      farmer_name: 'Sabor a Tierra' 
     });
   }
 
@@ -139,102 +142,111 @@ const getOrderItemsData = async (items: CheckoutItemInput[], orderId: string) =>
 };
 
 export const createOrderFromCheckout = async (payload: CheckoutPayload) => {
-  if (!Array.isArray(payload.items) || payload.items.length === 0) {
-    throw new Error('El pedido debe incluir al menos un producto');
-  }
+  try {
+    if (!Array.isArray(payload.items) || payload.items.length === 0) {
+      throw new Error('El pedido debe incluir al menos un producto');
+    }
 
-  const customerId = await findOrCreateCustomer(payload.customer_info, payload.marketing_consent);
-  const orderNumber = generateOrderNumber();
-  const estimatedDeliveryDate = calculateEstimatedDelivery();
+    const customerId = await findOrCreateCustomer(payload.customer_info, payload.marketing_consent);
+    const orderNumber = generateOrderNumber();
+    const estimatedDeliveryDate = calculateEstimatedDelivery();
 
-  const { data: insertedOrder, error: orderInsertError } = await supabaseAdmin
-    .from('orders')
-    .insert([
-      {
-        order_number: orderNumber,
-        customer_id: customerId,
-        customer_email: payload.customer_info.email,
-        customer_first_name: payload.customer_info.first_name,
-        customer_last_name: payload.customer_info.last_name,
-        customer_phone: payload.customer_info.phone,
-        shipping_address: payload.delivery_address.address,
-        shipping_city: payload.delivery_address.city,
-        shipping_postal_code: payload.delivery_address.postal_code,
-        shipping_province: payload.delivery_address.province,
-        shipping_notes: payload.delivery_address.delivery_notes || null,
-        subtotal: 0,
-        shipping_cost: 0,
-        tax_amount: 0,
-        total_amount: 0,
-        status: 'pending' as OrderStatus,
-        payment_status: (payload.payment_method === 'bizum' || payload.payment_method === 'transferencia' ? 'pending' : 'paid') as PaymentStatus,
-        payment_method: payload.payment_method,
-        estimated_delivery_date: estimatedDeliveryDate
+    const { data: insertedOrder, error: orderInsertError } = await supabaseAdmin
+      .from('orders')
+      .insert([
+        {
+          order_number: orderNumber,
+          customer_id: customerId,
+          customer_email: payload.customer_info.email,
+          customer_first_name: payload.customer_info.first_name,
+          customer_last_name: payload.customer_info.last_name,
+          customer_phone: payload.customer_info.phone || null,
+          shipping_address: payload.delivery_address.address,
+          shipping_city: payload.delivery_address.city,
+          shipping_postal_code: payload.delivery_address.postal_code,
+          shipping_province: payload.delivery_address.province || null, // Vital: null en vez de undefined
+          shipping_notes: payload.delivery_address.delivery_notes || null, // Vital: null en vez de undefined
+          subtotal: 0,
+          shipping_cost: 0,
+          tax_amount: 0,
+          total_amount: 0,
+          status: 'pending' as OrderStatus,
+          payment_status: (payload.payment_method === 'bizum' || payload.payment_method === 'transferencia' ? 'pending' : 'paid') as PaymentStatus,
+          payment_method: payload.payment_method,
+          estimated_delivery_date: estimatedDeliveryDate
+        }
+      ])
+      .select('*')
+      .single();
+
+    if (orderInsertError || !insertedOrder) {
+      console.error("❌ DB Error (orders):", orderInsertError);
+      throw new Error(`No se pudo crear la orden: ${orderInsertError?.message || 'Error desconocido'}`);
+    }
+
+    const { orderItems, subtotal } = await getOrderItemsData(payload.items, insertedOrder.id);
+    const shippingCost = subtotal > 50 ? 0 : subtotal <= 4 ? 3.9 : subtotal <= 10 ? 4.45 : subtotal <= 15 ? 5.9 : 10.95;
+
+    let discountAmount = 0;
+    let discountCodeUsed: string | null = null;
+
+    if (payload.discountCode) {
+      const validation = await validateDiscountCode({
+        code: payload.discountCode,
+        customerEmail: payload.customer_info.email,
+        subtotal
+      });
+
+      if (!validation.isValid) {
+        throw new Error(validation.error || 'Cupón inválido');
       }
-    ])
-    .select('*')
-    .single();
 
-  if (orderInsertError || !insertedOrder) {
-    throw new Error(`No se pudo crear la orden: ${orderInsertError?.message || 'Error desconocido'}`);
-  }
-
-  const { orderItems, subtotal } = await getOrderItemsData(payload.items, insertedOrder.id);
-  const shippingCost = subtotal > 50 ? 0 : subtotal <= 4 ? 3.9 : subtotal <= 10 ? 4.45 : subtotal <= 15 ? 5.9 : 10.95;
-
-  let discountAmount = 0;
-  let discountCodeUsed: string | null = null;
-
-  if (payload.discountCode) {
-    const validation = await validateDiscountCode({
-      code: payload.discountCode,
-      customerEmail: payload.customer_info.email,
-      subtotal
-    });
-
-    if (!validation.isValid) {
-      throw new Error(validation.error || 'Cupón inválido');
+      if (typeof validation.percentage === 'number') {
+        discountAmount = (subtotal * validation.percentage) / 100;
+        discountCodeUsed = payload.discountCode;
+      }
     }
 
-    if (typeof validation.percentage === 'number') {
-      discountAmount = (subtotal * validation.percentage) / 100;
-      discountCodeUsed = payload.discountCode;
+    const finalSubtotal = Math.max(0, subtotal - discountAmount);
+    const totalAmount = finalSubtotal + shippingCost;
+
+    if (orderItems.length > 0) {
+      const { error: itemError } = await supabaseAdmin.from('order_items').insert(orderItems);
+      if (itemError) {
+        console.error("❌ DB Error (order_items):", itemError);
+        throw new Error(`No se pudieron guardar los productos del pedido: ${itemError.message}`);
+      }
     }
-  }
 
-  const finalSubtotal = Math.max(0, subtotal - discountAmount);
-  const totalAmount = finalSubtotal + shippingCost;
+    const { error: updateOrderError } = await supabaseAdmin
+      .from('orders')
+      .update({
+        subtotal: finalSubtotal,
+        shipping_cost: shippingCost,
+        tax_amount: 0,
+        total_amount: totalAmount,
+        discount_code_used: discountCodeUsed,
+        discount_amount: discountAmount
+      })
+      .eq('id', insertedOrder.id);
 
-  if (orderItems.length > 0) {
-    const { error: itemError } = await supabaseAdmin.from('order_items').insert(orderItems);
-    if (itemError) {
-      throw new Error(`No se pudieron guardar los productos del pedido: ${itemError.message}`);
+    if (updateOrderError) {
+      console.error("❌ DB Error (orders update):", updateOrderError);
+      throw new Error(`No se pudo actualizar el total del pedido: ${updateOrderError.message}`);
     }
+
+    await addTimelineEntry(insertedOrder.id, 'pending', 'Pedido recibido y en proceso de confirmación');
+
+    if (discountCodeUsed) {
+      await markDiscountCodeAsUsed(discountCodeUsed, insertedOrder.id);
+    }
+
+    return getOrderById(insertedOrder.id);
+
+  } catch (error: any) {
+    console.error("🔥🔥🔥 ERROR CRÍTICO AL CREAR PEDIDO:", error);
+    throw error;
   }
-
-  const { error: updateOrderError } = await supabaseAdmin
-    .from('orders')
-    .update({
-      subtotal: finalSubtotal,
-      shipping_cost: shippingCost,
-      tax_amount: 0,
-      total_amount: totalAmount,
-      discount_code_used: discountCodeUsed,
-      discount_amount: discountAmount
-    })
-    .eq('id', insertedOrder.id);
-
-  if (updateOrderError) {
-    throw new Error(`No se pudo actualizar el total del pedido: ${updateOrderError.message}`);
-  }
-
-  await addTimelineEntry(insertedOrder.id, 'pending', 'Pedido recibido y en proceso de confirmación');
-
-  if (discountCodeUsed) {
-    await markDiscountCodeAsUsed(discountCodeUsed, insertedOrder.id);
-  }
-
-  return getOrderById(insertedOrder.id);
 };
 
 export const getOrderById = async (orderId: string) => {
