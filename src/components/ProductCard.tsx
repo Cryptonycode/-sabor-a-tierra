@@ -22,17 +22,7 @@ export default function ProductCard({ id, name, price, imageUrl, main_image_url,
   // Usar main_image_url si existe, sino usar imageUrl
   const imageSrc = main_image_url || imageUrl || '';
 
-  // Log para depuración
-  console.log('🖼️ ProductCard renderizado:', { 
-    id, 
-    name, 
-    imageUrl, 
-    main_image_url, 
-    imageSrc, 
-    price, 
-    unit, 
-    category 
-  });
+ 
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault(); // Evitar navegación al hacer click en el botón
