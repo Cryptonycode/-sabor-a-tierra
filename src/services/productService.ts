@@ -43,7 +43,7 @@ export class ProductService {
     let query = supabaseAdmin
       .from('products')
       .select('*')
-      .eq('status', 'published')
+      // Quitamos el .eq('status', 'published') porque no existe en tu base de datos
       .eq('is_available', true)
       .order('created_at', { ascending: false });
 
@@ -73,7 +73,7 @@ export class ProductService {
       .from('products')
       .select('*')
       .eq('id', id)
-      .eq('status', 'published')
+      // Quitamos el .eq('status', 'published') de aquí también
       .single();
 
     if (productError) {
@@ -87,6 +87,7 @@ export class ProductService {
       return null;
     }
 
+    // Intentamos obtener las variantes, pero si falla NO rompemos la página
     const { data: variantsData, error: variantsError } = await supabaseAdmin
       .from('product_variants')
       .select('*')
@@ -94,7 +95,7 @@ export class ProductService {
       .order('created_at', { ascending: true });
 
     if (variantsError) {
-      throw new Error(`Error al obtener variantes del producto: ${variantsError.message}`);
+      console.warn(`Aviso: No se pudieron cargar las variantes: ${variantsError.message}`);
     }
 
     return {
@@ -107,7 +108,7 @@ export class ProductService {
     const { data, error } = await supabaseAdmin
       .from('products')
       .select('category')
-      .eq('status', 'published')
+      // Quitamos el .eq('status', 'published')
       .eq('is_available', true);
 
     if (error) {
