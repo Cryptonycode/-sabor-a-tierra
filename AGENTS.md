@@ -31,5 +31,3 @@ Este documento es la LEY del proyecto. Como Agente de IA, DEBES leer, comprender
 - **Commits:** Usa Conventional Commits obligatoriamente (`feat:`, `fix:`, `chore:`, `refactor:`).
 
 ---
-**⚠️ INSTRUCCIÓN FINAL DE COMPROBACIÓN:** 
-Cuando leas este archivo al iniciar una sesión de trabajo, responde con la frase: *"He leído la Biblia del Proyecto. Arquitectura Next.js unificada con Supabase comprendida. Listo para seguir los Specs."* para confirmar que estás alineado.
