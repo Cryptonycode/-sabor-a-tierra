@@ -1,1 +1,2 @@
-- [x] [Target: src/components/Header.tsx] El texto del logo actualmente oculta la parte "a Tierra" en vista móvil (probablemente por una clase `hidden sm:block` o similar). Modifica el código para que el texto "Sabor a Tierra" sea un solo bloque siempre visible en todas las pantallas. Si es muy grande para móvil, reduce el tamaño de la fuente (ej. `text-sm md:text-xl`) en lugar de ocultar palabras.
+- [x] [Target: src/components/ScrollToTop.tsx] Crear un nuevo componente funcional `ScrollToTop` que usa `'use client'` y `useEffect` para ejecutar `window.scrollTo(0, 0)` al montar. Retorna null.
+- [x] [Target: src/app/productos/[id]/page.tsx] Importar e inyectar el componente `<ScrollToTop />` al principio del JSX de la página de producto.

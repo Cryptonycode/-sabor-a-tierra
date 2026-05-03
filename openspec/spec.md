@@ -1,56 +1,36 @@
-# Especificación Técnica: Fix Mobile UI
+# Especificación Técnica: Fix Scroll Bug en Página de Producto
 
 ## Descripción general
-La corrección solicitada aborda dos problemas en la interfaz de usuario móvil. Primero, el texto del logo "Sabor a Tierra" se trunca en dispositivos móviles mostrándose solo como "sabor"; se ajustará el truncamiento mediante cambios en los tamaños de fuente según los breakpoints de Tailwind CSS. Segundo, el botón del menú hamburguesa no funciona correctamente; se implementará un estado para gestionar su apertura y cierre, mostrando así los enlaces de navegación.
+Se debe solucionar un bug en la página de producto de una aplicación Next.js que carga la vista por la mitad al acceder. La solución consiste en implementar un nuevo componente `ScrollToTop` que forzará el scroll al inicio de la página usando `window.scrollTo(0, 0)` sin cambiar la página de producto a un Client Component, manteniendo así la optimización SEO proporcionada por los Server Components.
 
 ## Casos de uso
-1. **Actor:** Usuario móvil
-   - **Escenario 1:** Visualiza el logo en la barra de navegación sin truncamiento.
-     - **Flujo:** 
-       - El usuario accede a la aplicación desde un dispositivo móvil.
-       - El texto completo del logo "Sabor a Tierra" se muestra sin truncamiento.
-   
-2. **Actor:** Usuario móvil
-   - **Escenario 2:** Interactúa con el menú hamburguesa.
-     - **Flujo:** 
-       - El usuario accede a la aplicación desde un dispositivo móvil.
-       - El usuario hace clic en el botón de menú hamburguesa.
-       - El menú despliega correctamente los enlaces de navegación.
-       - Un segundo clic en el botón cierra el menú.
+- **Escenario principal:** 
+  - Actor: Usuario que navega a una página de producto específica.
+  - Flujo: 
+    1. El usuario accede a la URL de un producto.
+    2. La página se carga asegurando que la vista está posicionada al inicio.
+- **Escenario de error:** 
+  - Actor: Usuario que recarga la página o accede a través de un enlace.
+  - Flujo: 
+    1. El usuario accede o recarga la página.
+    2. El componente `ScrollToTop` garantiza el posicionamiento correcto de la vista al inicio.
 
 ## Decisiones de arquitectura
-- **Componentes a modificar:**
-  - `src/app/components/Header.tsx`: Se realizará la actualización del estado para gestionar la apertura y cierre del menú hamburguesa y se ajustará el CSS de Tailwind para evitar el truncamiento del texto del logo.
-  
-- **Patrones a utilizar:**
-  - Implementación de un estado local utilizando `useState` para manejar la lógica de apertura/cierre del menú hamburguesa.
-
-- **Librerías y dependencias:**
-  - Tailwind CSS para el manejo de los estilos.
-  - Next.js con `use client` en `Header.tsx` para interactividad con el estado del menú.
-
-- **Consideraciones de seguridad/estado:**
-  - Asegurarse de que la manipulación del DOM sea segura y sólo suceda en el cliente.
+- **Nuevo componente:** `src/components/ScrollToTop.tsx`
+  - Componente funcional que usa `'use client'` y un `useEffect` para ejecutar `window.scrollTo(0, 0)` al montar.
+- **Página de producto:** `src/app/product/[productId]/page.tsx`
+  - Inyección del componente `ScrollToTop` antes del contenido principal de la página.
+- **Consideraciones de seguridad/estado:** 
+  - No es necesario almacenar estado ni interactuar con Supabase.
+  - El uso de `window` se fragmenta en un componente separado para garantizar que la modificación del DOM se maneje desde un Client Component.
 
 ## Criterios de Aceptación y Testing
-1. **Archivo de test:** `src/app/components/__tests__/Header.test.tsx`
-
-2. **Funciones a testear:**
-   - Comportamiento del tamaño del texto del logo en diferentes breakpoints.
-   - Lógica de apertura y cierre del menú hamburguesa.
-
-3. **Escenarios clave:**
-   - **Happy Path:**
-     - Verificar que el tamaño del texto del logo se ajusta correctamente en dispositivos móviles.
-     - Comprobar que el menú se abre y cierra al hacer clic en el botón hamburguesa.
-   
-   - **Edge Cases:**
-     - Comportamiento del menú si se hace clic repetidamente en intervalos cortos.
-     - Verificar el ajuste de texto del logo en diferentes resoluciones de pantalla móvil.
-   
-   - **Errores:**
-     - Asegurar que no se lanzan errores de JavaScript al hacer clic en el botón de menú.
-     - Verificar que el menú no se abre/cierra si el estado interno no cambia.
-
-4. **Librerías de testing:**
-   - Usar `@testing-library/react` y `@testing-library/jest-dom` para las pruebas unitarias correspondientes.
+- No se planifican tests unitarios para el comportamiento de `window.scrollTo` debido a las restricciones del proyecto que prohíben los test directos para el scroll de ventanas.
+- Testing deberá enfocarse en asegurar que la inyección del componente no genera errores en la aplicación y que no afecta el comportamiento del Server Component con los datos cargados desde Supabase.
+  - **Archivo de pruebas:** `src/tests/ProductPage.test.tsx`
+  - **Funciones a testear:**
+    - Inyección del componente `ScrollToTop`
+    - Verificación de que la página renderiza correctamente sin contenido desplazado.
+  - **Escenarios clave:**
+    - Happy path: Verificar la renderización de la página de producto sin errores.
+    - Verificar que el `ScrollToTop` se monta sin errores y no interfiere con la carga de datos.

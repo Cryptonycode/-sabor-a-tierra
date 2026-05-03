@@ -10,6 +10,9 @@ import Footer from '@/components/Footer';
 import { toast } from 'react-hot-toast';
 
 export default function ProductPage() {
+   useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
   const params = useParams();
   const { addToCart, openCart } = useCart();
   const [selectedVariant, setSelectedVariant] = useState(0);
