@@ -1,36 +1,40 @@
-# Especificación Técnica: Fix Scroll Bug en Página de Producto
+# Especificación Técnica: Página de Contacto
 
 ## Descripción general
-Se debe solucionar un bug en la página de producto de una aplicación Next.js que carga la vista por la mitad al acceder. La solución consiste en implementar un nuevo componente `ScrollToTop` que forzará el scroll al inicio de la página usando `window.scrollTo(0, 0)` sin cambiar la página de producto a un Client Component, manteniendo así la optimización SEO proporcionada por los Server Components.
+Se implementará una nueva página de contacto en el proyecto "Sabor a Tierra", utilizando Next.js con un formulario que permita a los usuarios enviar su nombre, correo electrónico y mensaje. La página seguirá el diseño global y la arquitectura del proyecto, asegurando la validación básica de los campos y un diseño responsivo según el UI kit existente.
 
 ## Casos de uso
-- **Escenario principal:** 
-  - Actor: Usuario que navega a una página de producto específica.
-  - Flujo: 
-    1. El usuario accede a la URL de un producto.
-    2. La página se carga asegurando que la vista está posicionada al inicio.
-- **Escenario de error:** 
-  - Actor: Usuario que recarga la página o accede a través de un enlace.
-  - Flujo: 
-    1. El usuario accede o recarga la página.
-    2. El componente `ScrollToTop` garantiza el posicionamiento correcto de la vista al inicio.
+- **Actor:** Usuario del sitio web
+  - **Escenario:** El usuario accede a la página de contacto en `/contacto`.
+    - **Flujo principal:**
+      1. El usuario completa los campos de nombre, correo electrónico y mensaje.
+      2. Valida los campos con reglas básicas (campos obligatorios, formato de email).
+      3. Envía el formulario correctamente.
+      4. Recibe feedback visual de confirmación o error.
+  - **Flujo alternativo:** El usuario deja algún campo vacío o ingresa un formato de email incorrecto.
+    - El sistema muestra mensajes de error al lado de los campos invalidos.
 
 ## Decisiones de arquitectura
-- **Nuevo componente:** `src/components/ScrollToTop.tsx`
-  - Componente funcional que usa `'use client'` y un `useEffect` para ejecutar `window.scrollTo(0, 0)` al montar.
-- **Página de producto:** `src/app/product/[productId]/page.tsx`
-  - Inyección del componente `ScrollToTop` antes del contenido principal de la página.
-- **Consideraciones de seguridad/estado:** 
-  - No es necesario almacenar estado ni interactuar con Supabase.
-  - El uso de `window` se fragmenta en un componente separado para garantizar que la modificación del DOM se maneje desde un Client Component.
+- **Componentes a modificar:**
+  - Crear un nuevo archivo para la página de contacto, `src/app/contacto/page.tsx`.
+  - Posiblemente modificar estilos generales en `src/app/globals.css` si se requiere ajustar diseño global.
+
+- **Patrones y dependencias:**
+  - Usar React (Client Components) para el formulario por requerir interactividad.
+  - Usar `TailwindCSS` para estilos y asegurarse de que los componentes sean responsivos.
+  - Validación básica utilizando JavaScript nativo dentro del componente.
+  - Asegurar que no se rompa el estado global a través de `<ClientLayoutWrapper>` en `src/components/layout/ClientLayoutWrapper.tsx`.
 
 ## Criterios de Aceptación y Testing
-- No se planifican tests unitarios para el comportamiento de `window.scrollTo` debido a las restricciones del proyecto que prohíben los test directos para el scroll de ventanas.
-- Testing deberá enfocarse en asegurar que la inyección del componente no genera errores en la aplicación y que no afecta el comportamiento del Server Component con los datos cargados desde Supabase.
-  - **Archivo de pruebas:** `src/tests/ProductPage.test.tsx`
-  - **Funciones a testear:**
-    - Inyección del componente `ScrollToTop`
-    - Verificación de que la página renderiza correctamente sin contenido desplazado.
+- **Archivo de test:** `src/tests/contacto.test.tsx`
+  - **Funciones a testear:** Componente de Página de Contacto
   - **Escenarios clave:**
-    - Happy path: Verificar la renderización de la página de producto sin errores.
-    - Verificar que el `ScrollToTop` se monta sin errores y no interfiere con la carga de datos.
+    1. **Happy Path:**
+       - Rellenar todos los campos válidamente y enviar el formulario. Verificar visualización del mensaje de éxito.
+    2. **Edge Cases:**
+       - Probar envío con campos vacíos para asegurar que arrojen los mensajes de error apropiados.
+       - Probar diferentes formatos de email incorrectos y comprobar que los mensajes de error sean mostrados.
+    3. **Errores:**
+       - Simular un fallo en el envío del formulario para asegurar el manejo de errores y que el usuario reciba el feedback visual apropiado.
+
+- **Librerías de testing:** `jest`, `@testing-library/react`

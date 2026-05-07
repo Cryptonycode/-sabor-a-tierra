@@ -7,6 +7,28 @@ Este documento es la LEY del proyecto. Como Agente de IA, DEBES leer, comprender
 - **PROHIBIDO crear carpetas de backend separadas:** Recientemente eliminamos una arquitectura monorepo compleja. NO intentes recrear carpetas como `/backend`, `/api-server`, etc.
 - **Base de Datos:** Usamos Supabase. La comunicación se hace directamente desde Next.js (usando Server Components o Server Actions) hacia Supabase. NO hay un servidor Node/Express intermedio.
 
+# CONTEXTO DEL PROYECTO
+- Proyecto: Sabor a Tierra
+- Stack Tecnológico: Next.js 14, React, TailwindCSS, TypeScript.
+
+# REGLAS DE ARQUITECTURA Y ENRUTAMIENTO
+- Framework: Next.js 14 usando ESTRICTAMENTE App Router (`src/app/`). Prohibido usar o referenciar el paradigma antiguo `src/pages/`.
+- Idioma de Rutas: Todas las rutas de Next.js (nombres de carpetas en `src/app/`) DEBEN estar en español y en minúsculas (ej. `contacto`, `productos`, `sobre-nosotros`), a menos que sea una ruta de API interna.
+- Imports: Utilizar siempre alias de rutas absolutas (ej. `@/components/Header`) en lugar de rutas relativas (`../`).
+
+# ESTRUCTURA DE COMPONENTES
+- Los componentes base residen directamente en `src/components/` (estructura plana). NO inventar subdirectorios como `components/header/` o `components/footer/`.
+- Los componentes de layout específicos (como wrappers) residen en `src/components/layout/`.
+
+# GESTIÓN DE ESTADO Y LAYOUT PRINCIPAL (CRÍTICO)
+- El archivo `src/app/layout.tsx` es un Server Component puro. NUNCA debe importar Providers de React Context ni componentes de UI como `<Header />` o `<Footer />` directamente.
+- Todo el enrutamiento de estado global (Auth, Cart), navegación superior (Header), modales y Footer se maneja ESTRICTAMENTE a través del componente `<ClientLayoutWrapper>`. 
+- El `layout.tsx` solo debe importar `ClientLayoutWrapper` desde `@/components/layout/ClientLayoutWrapper` y pasarle los `{children}` dentro del `<body>`. NUNCA sobrescribir el layout eliminando este wrapper.
+
+# ESTILOS Y ASSETS
+- Los estilos globales se importan en el layout principal usando la ruta relativa estricta de App Router (`import "./globals.css";` asumiendo que está en `src/app/`).
+- Prohibido asumir la existencia de un directorio `src/styles/` a menos que se verifique explícitamente.
+
 ## 🛠️ 2. METODOLOGÍA: Spec-Driven Development (SDD)
 - **No inventes requerimientos:** Debes basarte estrictamente en los documentos de especificaciones (Specs) proporcionados por el usuario.
 - **Paso a paso:** Antes de codificar, analiza el Spec, haz preguntas aclaratorias si hay ambigüedades, y propón el plan arquitectónico. Solo escribe código cuando el usuario apruebe el plan.

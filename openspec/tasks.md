@@ -1,2 +1,10 @@
-- [x] [Target: src/components/ScrollToTop.tsx] Crear un nuevo componente funcional `ScrollToTop` que usa `'use client'` y `useEffect` para ejecutar `window.scrollTo(0, 0)` al montar. Retorna null.
-- [x] [Target: src/app/productos/[id]/page.tsx] Importar e inyectar el componente `<ScrollToTop />` al principio del JSX de la página de producto.
+- [x] [Target: src/app/contacto/page.tsx] Crear el archivo para la nueva página de contacto con el formulario que incluya campos de nombre, correo electrónico y mensaje.
+- [x] [Target: src/app/contacto/page.tsx] Implementar la validación básica de campos usando JavaScript nativo dentro del componente.
+- [x] [Target: src/app/contacto/page.tsx] Integrar el formulario en el Client Components utilizando React.
+- [x] [Target: src/app/globals.css, src/app/contacto/page.tsx] Ajustar y aplicar estilos responsivos a la página de contacto usando TailwindCSS.
+- [x] [Target: src/components/layout/ClientLayoutWrapper.tsx] Verificar y asegurar que el uso del nuevo componente no rompe el estado global al utilizar `<ClientLayoutWrapper>`.
+- [x] [Target: src/tests/contacto.test.tsx] Crear test para el "Happy Path", donde se rellenan correctamente todos los campos y se envía el formulario verificando el mensaje de éxito.
+- [x] [Target: src/tests/contacto.test.tsx] Crear test para el caso de envío con campos vacíos verificando que se muestren los mensajes de error apropiados.
+- [x] [Target: src/tests/contacto.test.tsx] Crear test para verificar el manejo de formatos incorrectos en el campo de correo electrónico y que los mensajes de error sean correctamente mostrados.
+- [x] [Target: src/tests/contacto.test.tsx] Simular un fallo en el envío del formulario y probar que el feedback visual adecuado de error se muestra al usuario.
+- [ ] [Target: N/A] [MANUAL - HUMANO] Revisar el diseño actual proporcionado por el UI kit para garantizar que el nuevo formulario de contacto sea consistente con el diseño global.
