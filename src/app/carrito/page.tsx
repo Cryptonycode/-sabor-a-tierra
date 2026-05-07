@@ -3,7 +3,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import CartItem from '@/components/CartItem';
-import Footer from '@/components/Footer';
 
 export default function CartPage() {
   const router = useRouter();
@@ -231,7 +230,6 @@ export default function CartPage() {
           )}
         </div>
       </main>
-      <Footer />
     </>
   );
 }

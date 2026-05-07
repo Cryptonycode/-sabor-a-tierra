@@ -3,7 +3,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useFarmers } from '@/hooks/useFarmers';
-import Footer from '@/components/Footer';
 import FarmerRegistrationModal from '@/components/FarmerRegistrationModal';
 
 const specialtyCategories = [
@@ -288,7 +287,6 @@ export default function AgricultoresPage() {
           </div>
         </section>
       </main>
-      <Footer />
     </div>
   );
 }

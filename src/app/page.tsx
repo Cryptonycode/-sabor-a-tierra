@@ -3,7 +3,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import ProductCard from '@/components/ProductCard';
 import TestimonialCard from '@/components/TestimonialCard';
-import Footer from '@/components/Footer';
 import { useEffect, useState } from 'react';
 import { productApi } from '@/lib/api';
 
@@ -174,7 +173,6 @@ export default function Home() {
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 } 

@@ -2,7 +2,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
-import Footer from '@/components/Footer';
 import FarmerRegistrationModal from '@/components/FarmerRegistrationModal';
 
 export default function AboutUsPage() {
@@ -190,7 +189,6 @@ export default function AboutUsPage() {
         isOpen={isFarmerModalOpen}
         onClose={() => setIsFarmerModalOpen(false)}
       />
-      <Footer />
     </div>
   );
 }

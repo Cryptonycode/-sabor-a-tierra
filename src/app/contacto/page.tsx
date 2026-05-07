@@ -76,15 +76,17 @@ export default function ContactoPage() {
   };
 
   return (
-    <main className="contact-shell">
-      <section className="contact-card">
-        <h1 className="contact-title">Contacto</h1>
-        <p className="contact-description">
+    <main className="relative flex min-h-screen flex-col overflow-visible px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
+      <section className="w-full max-w-3xl mx-auto bg-white rounded-lg shadow-md p-5 sm:p-6 md:p-8">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3 sm:mb-4">
+          Contacto
+        </h1>
+        <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
           ¿Tienes alguna consulta? Completa el siguiente formulario y te
           responderemos pronto.
         </p>
 
-        <form onSubmit={handleSubmit} className="contact-form" noValidate>
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5" noValidate>
           <div>
             <label htmlFor="nombre" className="form-label">
               Nombre
@@ -144,10 +146,10 @@ export default function ContactoPage() {
             {enviando ? "Enviando..." : "Enviar mensaje"}
           </button>
 
-          {error && <p className="form-feedback text-red-600">{error}</p>}
+          {error && <p className="text-sm mt-3 text-red-600">{error}</p>}
 
           {enviado && !error && (
-            <p className="form-feedback text-green-600">
+            <p className="text-sm mt-3 text-green-600">
               ¡Gracias! Tu mensaje ha sido enviado correctamente.
             </p>
           )}

@@ -1,7 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
 import ProductCard from '@/components/ProductCard';
-import Footer from '@/components/Footer';
 import { useProducts } from '@/hooks/useProducts';
 import FarmerRegistrationModal from '@/components/FarmerRegistrationModal';
 
@@ -200,7 +199,6 @@ export default function ProductsPage() {
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }

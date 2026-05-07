@@ -8,6 +8,7 @@ import DiscountModal from '@/components/DiscountModal';
 import DiscountBanner from '@/components/DiscountBanner';
 import Header from '@/components/Header';
 import CartSidebar from '@/components/CartSidebar';
+import Footer from '@/components/Footer';
 
 // Rutas donde el banner DEBE mostrarse
 const BANNER_ALLOWED_ROUTES = ['/', '/productos', '/agricultores', '/sobre-nosotros'];
@@ -138,6 +139,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
       <CartProvider>
         <Header />
         {children}
+        <Footer />
         {bannerEnabled && (
           <>
             <DiscountModal

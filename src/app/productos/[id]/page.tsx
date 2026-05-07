@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { Product } from '@/types/cart';
 import { productApi } from '@/lib/api';
-import Footer from '@/components/Footer';
 import { toast } from 'react-hot-toast';
 
 export default function ProductPage() {
@@ -417,7 +416,6 @@ export default function ProductPage() {
           </div>
         </div>
       </main>
-      <Footer />
     </>
   );
 }

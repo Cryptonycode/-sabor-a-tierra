@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import Footer from '@/components/Footer';
 import { farmerApi, ApiFarmer } from '@/lib/api';
 
 interface ApiFarmerWithProducts extends ApiFarmer {
@@ -148,7 +147,6 @@ export default function FarmerPage() {
           </div>
         </section>
       </main>
-      <Footer />
     </>
   );
 }
