@@ -4,17 +4,32 @@ import ProductCard from '@/components/ProductCard';
 import { useProducts } from '@/hooks/useProducts';
 import FarmerRegistrationModal from '@/components/FarmerRegistrationModal';
 
+type CategoryId = 'all' | 'vegetables' | 'fruits';
+type SortBy = '' | 'price-low' | 'price-high';
+
+type CategoryFilter = {
+  id: CategoryId;
+  name: string;
+  emoji: string;
+  values: string[];
+};
+
 // Categorías de productos
-const categories = [
-  { id: 'all', name: 'Todos', emoji: '🥗' },
-  { id: 'vegetables', name: 'Verduras y Hortalizas', emoji: '🥬' },
-  { id: 'fruits', name: 'Frutas', emoji: '🥑' },
+const categories: CategoryFilter[] = [
+  { id: 'all', name: 'Todos', emoji: '🥗', values: [] },
+  {
+    id: 'vegetables',
+    name: 'Verduras y hortalizas',
+    emoji: '🥬',
+    values: ['vegetables', 'Verduras', 'Hortalizas'],
+  },
+  { id: 'fruits', name: 'Frutas', emoji: '🥑', values: ['fruits', 'Frutas'] },
 ];
 
 export default function ProductsPage() {
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState<CategoryId>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('name');
+  const [sortBy, setSortBy] = useState<SortBy>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { products: allProducts, loading, error } = useProducts();
@@ -26,7 +41,8 @@ export default function ProductsPage() {
 
     // Filtrar por categoría
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(product => product.category === selectedCategory);
+      const categoryValues = categories.find((category) => category.id === selectedCategory)?.values ?? [];
+      filtered = filtered.filter((product) => categoryValues.includes(product.category));
     }
 
     // Filtrar por búsqueda
@@ -37,13 +53,11 @@ export default function ProductsPage() {
     }
 
     // Asegurar que filtered siempre sea un array antes de ordenar
-    const productsToSort = Array.isArray(filtered) ? filtered : [];
+    const productsToSort = Array.isArray(filtered) ? [...filtered] : [];
 
     // Ordenar
     productsToSort.sort((a, b) => {
-      if (sortBy === 'name') {
-        return a.name.localeCompare(b.name);
-      } else if (sortBy === 'price-low') {
+      if (sortBy === 'price-low') {
         return a.price - b.price;
       } else if (sortBy === 'price-high') {
         return b.price - a.price;
@@ -137,10 +151,10 @@ export default function ProductsPage() {
               <div className="flex justify-center">
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={(e) => setSortBy(e.target.value as SortBy)}
                   className="input-field w-full sm:w-auto"
                 >
-                  <option value="name">Ordenar por nombre</option>
+                  <option value="">Ordenar por precio</option>
                   <option value="price-low">Precio: menor a mayor</option>
                   <option value="price-high">Precio: mayor a menor</option>
                 </select>
