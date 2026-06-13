@@ -4,7 +4,7 @@ export default function Footer() {
   return (
     <footer className="bg-primary text-white">
       <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
           {/* Logo y descripción */}
           <div className="col-span-1 md:col-span-2">
             <h3 className="text-2xl font-bold mb-4">Sabor a Tierra</h3>
@@ -31,6 +31,28 @@ export default function Footer() {
               <li>
                 <Link href="/contacto" className="text-gray-300 hover:text-white transition-colors">
                   Contacto
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Legal */}
+          <div>
+            <h4 className="text-lg font-semibold mb-4">Legal</h4>
+            <ul className="space-y-2">
+              <li>
+                <Link href="/aviso-legal" className="text-gray-300 hover:text-white transition-colors">
+                  Aviso Legal
+                </Link>
+              </li>
+              <li>
+                <Link href="/politica-privacidad" className="text-gray-300 hover:text-white transition-colors">
+                  Política de Privacidad
+                </Link>
+              </li>
+              <li>
+                <Link href="/politica-cookies" className="text-gray-300 hover:text-white transition-colors">
+                  Política de Cookies
                 </Link>
               </li>
             </ul>
