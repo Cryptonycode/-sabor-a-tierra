@@ -82,7 +82,8 @@ export default function ProductPage() {
   }
 
   const variants: any[] = Array.isArray(product.variants) ? product.variants : [];
-  const currentVariant = variants[selectedVariant] || null;
+  const visibleVariants = variants.slice(0, 3);
+  const currentVariant = visibleVariants[selectedVariant] || null;
   const finalPrice = currentVariant ? Number(currentVariant.price) : Number(product.price || 0);
 
   const handleAddToCart = async () => {
@@ -157,26 +158,29 @@ export default function ProductPage() {
                   </div>
                 </div>
                 <p className="text-gray-600 mb-6">{product.description}</p>
+                <p className="text-3xl font-bold text-accent">
+                  €{finalPrice.toFixed(2)}
+                </p>
               </div>
 
               {/* Variantes */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Variantes</h3>
-                {variants.length === 0 ? (
+                {visibleVariants.length === 0 ? (
                   <p className="text-sm text-gray-600">No hay variantes disponibles para este producto.</p>
                 ) : (
-                  <div className="space-y-3">
-                    {variants.map((variant, index) => (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {visibleVariants.map((variant, index) => (
                       <div
                         key={variant.id || index}
                         onClick={() => setSelectedVariant(index)}
-                        className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        className={`p-4 border-2 rounded-lg cursor-pointer bg-white transition-all ${
                           selectedVariant === index
-                            ? 'border-primary bg-primary/5'
+                            ? 'border-primary bg-primary/5 shadow-sm'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <div className="flex justify-between items-center">
+                        <div className="flex justify-between items-start gap-4">
                           <div>
                             <p className="font-medium">{variant.name}</p>
                             {variant.description && (
@@ -190,7 +194,7 @@ export default function ProductPage() {
                             )}
                           </div>
                           <div className="text-right">
-                            <p className="text-lg font-bold text-accent">€{Number(variant.price).toFixed(2)} EUR</p>
+                            <p className="text-lg font-bold text-accent whitespace-nowrap">€{Number(variant.price).toFixed(2)} EUR</p>
                             {typeof variant.stock_quantity === 'number' && (
                               <p className="text-xs text-gray-500">Stock: {variant.stock_quantity}</p>
                             )}

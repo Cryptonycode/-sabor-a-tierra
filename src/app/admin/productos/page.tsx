@@ -7,12 +7,7 @@ type NumericValue = number | '';
 interface ProductVariant {
   id?: string;
   name: string;
-  description?: string;
   price: NumericValue;
-  sku?: string;
-  weight?: NumericValue;
-  unit?: string;
-  pieces?: NumericValue;
 }
 
 interface Product {
@@ -83,12 +78,7 @@ export default function ProductsManagementPage() {
   const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(null);
   const [variantFormData, setVariantFormData] = useState<ProductVariant>({
     name: '',
-    description: '',
     price: '',
-    sku: '',
-    weight: '',
-    unit: 'kg',
-    pieces: '',
   });
 
   const categories = [
@@ -183,12 +173,7 @@ export default function ProductsManagementPage() {
       const normalizeVariant = (v: any) => ({
         id: v.id,
         name: String(v.name || ''),
-        description: v.description ? String(v.description) : null,
         price: toNumber(v.price),
-        sku: v.sku ? String(v.sku) : null,
-        weight: v.weight !== undefined ? toNumber(v.weight) : undefined,
-        pieces: v.pieces !== undefined ? toNumber(v.pieces, true) : undefined,
-        unit: v.unit ? String(v.unit) : null,
       });
 
       let variantsPayload = [...variants].map(normalizeVariant);
@@ -297,12 +282,7 @@ export default function ProductsManagementPage() {
     });
     setVariantFormData({
       name: '',
-      description: '',
       price: '',
-      sku: '',
-      weight: '',
-      unit: 'kg',
-      pieces: '',
     });
   };
 
@@ -311,12 +291,7 @@ export default function ProductsManagementPage() {
     setEditingVariant(null);
     setVariantFormData({
       name: '',
-      description: '',
       price: '',
-      sku: '',
-      weight: '',
-      unit: formData.unit,
-      pieces: '',
     });
     setShowVariantForm(true);
   };
@@ -342,12 +317,7 @@ export default function ProductsManagementPage() {
       };
       const variantPayload = {
         name: variantFormData.name,
-        description: variantFormData.description || null,
         price: toNumber(variantFormData.price),
-        sku: variantFormData.sku || null,
-        weight: variantFormData.weight !== '' && variantFormData.weight !== undefined ? toNumber(variantFormData.weight) : null,
-        unit: variantFormData.unit || null,
-        pieces: variantFormData.pieces !== '' && variantFormData.pieces !== undefined ? toNumber(variantFormData.pieces, true) : null,
       };
 
       if (editingVariant && editingVariant.id) {
@@ -372,12 +342,7 @@ export default function ProductsManagementPage() {
       setEditingVariant(null);
       setVariantFormData({
         name: '',
-        description: '',
         price: '',
-        sku: '',
-        weight: '',
-        unit: 'kg',
-        pieces: '',
       });
     } catch (error) {
       console.error('Error al guardar variante:', error);
@@ -690,7 +655,6 @@ export default function ProductsManagementPage() {
                                 <p className="font-medium text-gray-800">{variant.name}</p>
                                 <p className="text-gray-600">
                                   €{Number(variant.price || 0).toFixed(2)}
-                                  {variant.weight && ` | ${variant.weight}${variant.unit}`}
                                 </p>
                               </div>
                               <div className="flex space-x-1">
@@ -732,7 +696,7 @@ export default function ProductsManagementPage() {
                   <h4 className="text-sm font-semibold text-gray-700 mb-3">
                     {editingVariant ? 'Editar Variante' : 'Nueva Variante'}
                   </h4>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Nombre</label>
                       <input
@@ -744,41 +708,12 @@ export default function ProductsManagementPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">SKU</label>
-                      <input
-                        type="text"
-                        value={variantFormData.sku}
-                        onChange={(e) => setVariantFormData({...variantFormData, sku: e.target.value})}
-                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
-                        placeholder="opcional"
-                      />
-                    </div>
-                    <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Precio (€)</label>
                       <input
                         type="number"
                         step="0.01"
                         value={variantFormData.price}
                         onChange={(e) => setVariantFormData({...variantFormData, price: e.target.value === '' ? '' : Number(e.target.value)})}
-                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Peso/Cantidad</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={variantFormData.weight}
-                        onChange={(e) => setVariantFormData({...variantFormData, weight: e.target.value === '' ? '' : Number(e.target.value)})}
-                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Unidades/Piezas</label>
-                      <input
-                        type="number"
-                        value={variantFormData.pieces}
-                        onChange={(e) => setVariantFormData({...variantFormData, pieces: e.target.value === '' ? '' : Number(e.target.value)})}
                         className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
                       />
                     </div>

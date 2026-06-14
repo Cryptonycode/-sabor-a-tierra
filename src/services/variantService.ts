@@ -3,12 +3,7 @@ import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
 export interface VariantInput {
   product_id?: string;
   name: string;
-  description?: string | null;
   price: number;
-  sku?: string | null;
-  weight?: number | null;
-  unit?: string | null;
-  pieces?: number | null;
 }
 
 export class VariantService {
@@ -27,15 +22,11 @@ export class VariantService {
   }
 
   static async createVariant(variantData: VariantInput) {
+    const { product_id, name, price } = variantData;
     const insertData = {
-      product_id: variantData.product_id,
-      name: variantData.name,
-      description: variantData.description ?? null,
-      price: variantData.price,
-      sku: variantData.sku ?? null,
-      weight: variantData.weight ?? null,
-      unit: variantData.unit ?? null,
-      pieces: variantData.pieces ?? null,
+      product_id,
+      name,
+      price,
     };
 
     const { data, error } = await supabaseAdmin
@@ -52,14 +43,10 @@ export class VariantService {
   }
 
   static async updateVariant(id: string, variantData: VariantInput) {
+    const { name, price } = variantData;
     const updateData = {
-      name: variantData.name,
-      description: variantData.description ?? null,
-      price: variantData.price,
-      sku: variantData.sku ?? null,
-      weight: variantData.weight ?? null,
-      unit: variantData.unit ?? null,
-      pieces: variantData.pieces ?? null,
+      name,
+      price,
     };
 
     const { data, error } = await supabaseAdmin

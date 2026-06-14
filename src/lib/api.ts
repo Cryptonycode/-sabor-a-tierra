@@ -126,7 +126,7 @@ export interface ApiFarmer {
 // Servicios específicos para cada entidad
 export const productApi = {
   getAll: () => publicApiClient.get<ApiProduct[]>('/products'),
-  getById: (id: string) => publicApiClient.get<ApiProduct>(`/products/${id}`),
+  getById: (id: string) => publicApiClient.get<ApiProduct>(`/products/${id}`, { cache: 'no-store' }),
   getByCategory: (category: string) => publicApiClient.get<ApiProduct[]>(`/products?category=${encodeURIComponent(category)}`),
   search: (query: string) => publicApiClient.get<ApiProduct[]>(`/products?search=${encodeURIComponent(query)}`),
   getFeatured: () => publicApiClient.get<ApiProduct[]>('/products?featured=true'),

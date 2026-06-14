@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
-import { ProductService } from '@/services/productService';
+import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request: Request, context: any) {
   try {
@@ -9,7 +12,22 @@ export async function GET(request: Request, context: any) {
 
     console.log("---- BUSCANDO PRODUCTO CON ID:", id, "----");
 
-    const product = await ProductService.getPublicProductById(id);
+    const { data: product, error } = await supabaseAdmin
+      .from('products')
+      .select(`
+        *,
+        variants:product_variants(*)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
+      }
+
+      throw new Error(error.message);
+    }
 
     if (!product) {
       return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });

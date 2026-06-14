@@ -3,12 +3,7 @@ import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
 export interface ProductVariantInput {
   id?: string;
   name: string;
-  description?: string | null;
   price: number;
-  sku?: string | null;
-  weight?: number | null;
-  unit?: string | null;
-  pieces?: number | null;
 }
 
 export interface ProductInput {
@@ -188,12 +183,7 @@ export class ProductService {
       id: v.id || undefined,
       product_id: id,
       name: String(v.name || ''),
-      description: v.description ? String(v.description) : null,
       price: toNumber(v.price),
-      sku: v.sku ? String(v.sku) : null,
-      weight: v.weight !== undefined && v.weight !== null ? toNumber(v.weight) : null,
-      unit: v.unit ? String(v.unit) : null,
-      pieces: v.pieces !== undefined && v.pieces !== null ? toNumber(v.pieces, true) : null
     }));
 
     const productFields = {
