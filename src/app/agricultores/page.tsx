@@ -5,16 +5,7 @@ import Image from 'next/image';
 import { useFarmers } from '@/hooks/useFarmers';
 import FarmerRegistrationModal from '@/components/FarmerRegistrationModal';
 
-const specialtyCategories = [
-  { id: 'all', name: 'Todos', emoji: '🌾' },
-  { id: 'frutas', name: 'Frutas', emoji: '🍎' },
-  { id: 'verduras', name: 'Verduras', emoji: '🥬' },
-  { id: 'aceites', name: 'Aceites', emoji: '🫒' },
-  { id: 'citricos', name: 'Cítricos', emoji: '🍊' },
-];
-
 export default function AgricultoresPage() {
-  const [selectedCategory, setSelectedCategory] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { farmers, loading, error } = useFarmers();
 
@@ -47,21 +38,6 @@ export default function AgricultoresPage() {
     );
   }
 
-  const filteredFarmers = farmers.filter(farmer => {
-    if (selectedCategory === 'all') return true;
-    
-    const categoryMap: { [key: string]: string[] } = {
-      'frutas': ['Aguacates', 'Mangos', 'Chirimoyas', 'Manzanas'],
-      'verduras': ['Tomates', 'Pimientos', 'Berenjenas', 'Calabacines', 'Lechugas', 'Espinacas'],
-      'aceites': ['Aceitunas', 'Aceite de Oliva'],
-      'citricos': ['Naranjas', 'Limones', 'Mandarinas'],
-    };
-
-    return farmer.specialties.some(specialty => 
-      categoryMap[selectedCategory]?.some(cat => specialty.includes(cat))
-    );
-  });
-
   return (
     <div>
       <main className="min-h-screen bg-gray-50">
@@ -90,34 +66,11 @@ export default function AgricultoresPage() {
           </div>
         </section>
 
-        {/* Categories Filter */}
-        <section className="bg-white py-6 shadow-sm">
-          <div className="container mx-auto px-4">
-            <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-              {specialtyCategories.map((category) => (
-                <button
-                  key={category.id}
-                  onClick={() => setSelectedCategory(category.id)}
-                  className={`flex items-center space-x-2 px-3 sm:px-4 md:px-6 py-2 sm:py-3 rounded-full font-medium transition-all text-sm sm:text-base ${
-                    selectedCategory === category.id
-                      ? 'bg-primary text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <span className="text-sm sm:text-lg">{category.emoji}</span>
-                  <span className="hidden sm:inline">{category.name}</span>
-                  <span className="sm:hidden">{category.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
         {/* Farmers Grid */}
         <section className="py-16">
           <div className="container mx-auto px-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-              {filteredFarmers.map((farmer) => (
+              {farmers.map((farmer) => (
                 <div
                   key={farmer.id}
                   onClick={() => window.location.href = `/agricultores/${farmer.id}`}
@@ -219,10 +172,10 @@ export default function AgricultoresPage() {
               ))}
             </div>
 
-            {filteredFarmers.length === 0 && (
+            {farmers.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-gray-500 text-lg">
-                  No encontramos agricultores en esta categoría.
+                  No encontramos agricultores disponibles.
                 </p>
               </div>
             )}
@@ -263,7 +216,7 @@ export default function AgricultoresPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 text-center">
               <div className="p-6">
                 <div className="text-4xl font-bold text-primary mb-2">
-                  {farmers.reduce((acc, farmer) => acc + (farmer.hectares || 0), 0)}
+                  +20
                 </div>
                 <p className="text-gray-600">Hectáreas Cultivadas</p>
               </div>
@@ -273,15 +226,15 @@ export default function AgricultoresPage() {
               </div>
               <div className="p-6">
                 <div className="text-4xl font-bold text-primary mb-2">
-                  {farmers.reduce((acc, farmer) => acc + (farmer.customers_served || 0), 0)}+
+                  +50
                 </div>
-                <p className="text-gray-600">Clientes Atendidos</p>
+                <p className="text-gray-600">Clientes atendidos</p>
               </div>
               <div className="p-6">
                 <div className="text-4xl font-bold text-primary mb-2">
-                  {farmers.reduce((acc, farmer) => acc + (farmer.specialties?.length || 0), 0)}
+                  +15
                 </div>
-                <p className="text-gray-600">Variedades Cultivadas</p>
+                <p className="text-gray-600">Variedades cultivadas</p>
               </div>
             </div>
           </div>
