@@ -5,6 +5,21 @@ import Image from 'next/image';
 import { useFarmers } from '@/hooks/useFarmers';
 import FarmerRegistrationModal from '@/components/FarmerRegistrationModal';
 
+const FARMER_UPLOADS_BUCKET = 'uploads-pendientes';
+const DEFAULT_COVER_IMAGE = 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1200&h=600&fit=crop';
+const DEFAULT_PROFILE_IMAGE = '/default-avatar.png';
+
+const formatFarmerImageUrl = (imagePath: string | null | undefined, fallback: string) => {
+  if (!imagePath) return fallback;
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, '');
+  if (!supabaseUrl) return fallback;
+
+  const normalizedPath = imagePath.replace(/^\/+/, '');
+  return `${supabaseUrl}/storage/v1/object/public/${FARMER_UPLOADS_BUCKET}/${normalizedPath}`;
+};
+
 export default function AgricultoresPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { farmers, loading, error } = useFarmers();
@@ -79,7 +94,7 @@ export default function AgricultoresPage() {
                   {/* Cover Image */}
                   <div className="relative h-48 overflow-hidden">
                     <Image
-                      src={farmer.cover_image_url || 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1200&h=600&fit=crop'}
+                      src={formatFarmerImageUrl(farmer.cover_image_url, DEFAULT_COVER_IMAGE)}
                       alt={`Campo de ${farmer.first_name} ${farmer.last_name}`}
                       fill
                       className="object-cover group-hover:scale-105 transition-transform duration-300"
@@ -92,7 +107,7 @@ export default function AgricultoresPage() {
                     <div className="flex items-center space-x-4 mb-4">
                       <div className="relative w-16 h-16 rounded-full overflow-hidden border-4 border-white shadow-lg">
                         <Image
-                          src={farmer.profile_image_url || 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&h=400&fit=crop'}
+                          src={formatFarmerImageUrl(farmer.profile_image_url, DEFAULT_PROFILE_IMAGE)}
                           alt={`${farmer.first_name} ${farmer.last_name}`}
                           fill
                           className="object-cover"
