@@ -26,12 +26,14 @@ export default function AboutUsPage() {
         <section className="py-16">
           <div className="container mx-auto px-4">
             <div className="grid md:grid-cols-2 gap-12 items-center">
-              <div className="relative h-[400px] rounded-lg overflow-hidden">
-                <Image
-                  src="/images/about-us.jpg"
-                  alt="Agricultores trabajando"
+              <div className="relative w-full h-64 md:h-[400px] rounded-xl overflow-hidden mb-8">
+                <Image 
+                  src="/about-hero.jpg"
+                  alt="Agricultores trabajando en un campo mediterráneo"
                   fill
                   className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 80vw"
+                  priority
                 />
               </div>
               <div>
@@ -140,50 +142,6 @@ export default function AboutUsPage() {
           </div>
         </section>
 
-        {/* Equipo */}
-        <section className="bg-white py-16">
-          <div className="container mx-auto px-4">
-            <h2 className="text-3xl font-bold text-center text-gray-800 mb-12">Nuestro Equipo</h2>
-            <div className="grid md:grid-cols-3 gap-8">
-              <div className="text-center">
-                <div className="relative w-32 h-32 rounded-full overflow-hidden mx-auto mb-4">
-                  <Image
-                    src="https://images.pexels.com/photos/5905902/pexels-photo-5905902.jpeg"
-                    alt="María Rodríguez"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-800">María Rodríguez</h3>
-                <p className="text-gray-600">Fundadora y CEO</p>
-              </div>
-              <div className="text-center">
-                <div className="relative w-32 h-32 rounded-full overflow-hidden mx-auto mb-4">
-                  <Image
-                    src="https://images.pexels.com/photos/2382665/pexels-photo-2382665.jpeg"
-                    alt="Carlos Martínez"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-800">Carlos Martínez</h3>
-                <p className="text-gray-600">Director de Operaciones</p>
-              </div>
-              <div className="text-center">
-                <div className="relative w-32 h-32 rounded-full overflow-hidden mx-auto mb-4">
-                  <Image
-                    src="https://images.pexels.com/photos/5905445/pexels-photo-5905445.jpeg"
-                    alt="Ana López"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-800">Ana López</h3>
-                <p className="text-gray-600">Directora de Sostenibilidad</p>
-              </div>
-            </div>
-          </div>
-        </section>
       </main>
       <FarmerRegistrationModal
         isOpen={isFarmerModalOpen}
