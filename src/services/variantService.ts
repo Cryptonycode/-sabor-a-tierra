@@ -5,12 +5,10 @@ export interface VariantInput {
   name: string;
   description?: string | null;
   price: number;
-  stock_quantity: number;
   sku?: string | null;
   weight?: number | null;
   unit?: string | null;
   pieces?: number | null;
-  is_available?: boolean;
 }
 
 export class VariantService {
@@ -29,7 +27,17 @@ export class VariantService {
   }
 
   static async createVariant(variantData: VariantInput) {
-    const { is_available: _omit, ...insertData } = variantData as VariantInput & { is_available?: boolean };
+    const insertData = {
+      product_id: variantData.product_id,
+      name: variantData.name,
+      description: variantData.description ?? null,
+      price: variantData.price,
+      sku: variantData.sku ?? null,
+      weight: variantData.weight ?? null,
+      unit: variantData.unit ?? null,
+      pieces: variantData.pieces ?? null,
+    };
+
     const { data, error } = await supabaseAdmin
       .from('product_variants')
       .insert([insertData])
@@ -44,9 +52,19 @@ export class VariantService {
   }
 
   static async updateVariant(id: string, variantData: VariantInput) {
+    const updateData = {
+      name: variantData.name,
+      description: variantData.description ?? null,
+      price: variantData.price,
+      sku: variantData.sku ?? null,
+      weight: variantData.weight ?? null,
+      unit: variantData.unit ?? null,
+      pieces: variantData.pieces ?? null,
+    };
+
     const { data, error } = await supabaseAdmin
       .from('product_variants')
-      .update(variantData)
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();

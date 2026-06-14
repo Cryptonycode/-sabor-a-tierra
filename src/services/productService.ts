@@ -5,7 +5,6 @@ export interface ProductVariantInput {
   name: string;
   description?: string | null;
   price: number;
-  stock_quantity: number;
   sku?: string | null;
   weight?: number | null;
   unit?: string | null;
@@ -21,9 +20,6 @@ export interface ProductInput {
   unit: string;
   main_image_url?: string;
   is_available?: boolean;
-  stock_quantity?: number;
-  status?: 'draft' | 'published' | 'archived';
-  featured?: boolean;
   variants?: ProductVariantInput[];
 }
 
@@ -33,6 +29,13 @@ const toNumber = (val: unknown, integer = false): number => {
   if (!Number.isFinite(n)) return 0;
   return integer ? Math.trunc(n) : n;
 };
+
+export class ProductDeleteConflictError extends Error {
+  constructor() {
+    super("No se puede eliminar el producto porque tiene pedidos asociados. Por favor, cambia su estado a 'Archivado'.");
+    this.name = 'ProductDeleteConflictError';
+  }
+}
 
 export class ProductService {
   static async getPublicProducts(filters?: {
@@ -56,7 +59,7 @@ export class ProductService {
     }
 
     if (filters?.featured) {
-      query = query.eq('featured', true).limit(6);
+      query = query.limit(6);
     }
 
     const { data, error } = await query;
@@ -135,13 +138,33 @@ export class ProductService {
     return data || [];
   }
 
+  static async getAdminProductById(id: string) {
+    const { data, error } = await supabaseAdmin
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      throw new Error(`Error al obtener producto: ${error.message}`);
+    }
+
+    return data;
+  }
+
   static async createProduct(productData: ProductInput) {
     const insertData = {
-      ...productData,
+      name: productData.name,
+      description: productData.description,
+      price: toNumber(productData.price),
+      farmer_id: productData.farmer_id,
+      category: productData.category,
+      unit: productData.unit,
+      main_image_url: productData.main_image_url || null,
+      is_available: productData.is_available ?? true,
       tags: [],
       features: [],
       gallery_images: [],
-      stock_quantity: productData.stock_quantity || 0,
       min_order_quantity: 1,
       requires_cold_shipping: false
     };
@@ -167,18 +190,27 @@ export class ProductService {
       name: String(v.name || ''),
       description: v.description ? String(v.description) : null,
       price: toNumber(v.price),
-      stock_quantity: toNumber(v.stock_quantity, true),
       sku: v.sku ? String(v.sku) : null,
       weight: v.weight !== undefined && v.weight !== null ? toNumber(v.weight) : null,
       unit: v.unit ? String(v.unit) : null,
       pieces: v.pieces !== undefined && v.pieces !== null ? toNumber(v.pieces, true) : null
     }));
 
-    const { variants: _omit, ...productFields } = productData;
+    const productFields = {
+      name: productData.name,
+      description: productData.description,
+      price: toNumber(productData.price),
+      farmer_id: productData.farmer_id,
+      category: productData.category,
+      unit: productData.unit,
+      main_image_url: productData.main_image_url || null,
+      is_available: productData.is_available ?? true,
+      updated_at: new Date().toISOString()
+    };
 
     const { data, error } = await supabaseAdmin
       .from('products')
-      .update({ ...productFields, updated_at: new Date().toISOString() })
+      .update(productFields)
       .eq('id', id)
       .select()
       .single();
@@ -216,6 +248,9 @@ export class ProductService {
       .eq('id', id);
 
     if (error) {
+      if (error.code === '23503') {
+        throw new ProductDeleteConflictError();
+      }
       throw new Error(`Error al eliminar producto: ${error.message}`);
     }
   }

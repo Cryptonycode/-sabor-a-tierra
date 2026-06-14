@@ -1,7 +1,6 @@
 'use client';
 import { useState, useRef } from 'react';
 import Image from 'next/image';
-import imageCompression from 'browser-image-compression';
 
 interface ImageUploadProps {
   currentImageUrl?: string;
@@ -40,12 +39,15 @@ const buildPublicUrl = (bucket: string, path: string): string => {
 };
 
 export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 'Imagen', uploadUrl = '/uploads/product-image', requiresAuth = true, responseKey = 'publicUrl' }: ImageUploadProps) {
-  const [uploading, setUploading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(currentImageUrl || null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadInProgressRef = useRef(false);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isUploading || uploadInProgressRef.current) return;
+
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -66,23 +68,15 @@ export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 
     const reader = new FileReader();
 
     // Subida directa a Supabase con URL firmada
-    setUploading(true);
+    uploadInProgressRef.current = true;
+    setIsUploading(true);
     setError(null);
 
     try {
-      // Comprimir y convertir en cliente para evitar procesamiento serverless en Vercel
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 1.8,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-        initialQuality: 0.82,
-        fileType: 'image/webp'
-      });
-
       reader.onloadend = () => {
         setPreview(reader.result as string);
       };
-      reader.readAsDataURL(compressed);
+      reader.readAsDataURL(file);
 
       const targetConfig = resolveUploadTarget(uploadUrl);
       const signEndpoint = requiresAuth ? '/api/admin/uploads/sign' : '/api/public/uploads/sign';
@@ -93,7 +87,7 @@ export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 
         body: JSON.stringify({
           fileName: file.name,
           bucket: targetConfig.bucket,
-          contentType: compressed.type || 'image/webp',
+          contentType: file.type,
           folder: targetConfig.folder
         })
       });
@@ -103,17 +97,16 @@ export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 
         throw new Error(signedData.message || 'No se pudo obtener URL firmada');
       }
 
-      const uploadResponse = await fetch(signedData.signedUrl, {
+      const signedUrl = signedData.signedUrl as string;
+      const uploadRes = await fetch(signedUrl, {
         method: 'PUT',
+        body: file,
         headers: {
-          'Content-Type': compressed.type || 'image/webp'
+          'Content-Type': file.type,
         },
-        body: compressed
       });
 
-      if (!uploadResponse.ok) {
-        throw new Error('Error subiendo archivo a Supabase Storage');
-      }
+      if (!uploadRes.ok) throw new Error('Error en PUT a Supabase');
 
       const payload = {
         path: signedData.path as string,
@@ -127,7 +120,8 @@ export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 
       setError(err instanceof Error ? err.message : 'Error al subir la imagen');
       setPreview(currentImageUrl || null);
     } finally {
-      setUploading(false);
+      uploadInProgressRef.current = false;
+      setIsUploading(false);
     }
   };
 
@@ -170,7 +164,7 @@ export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 
         <div className="flex items-center justify-center w-full">
           <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
             <div className="flex flex-col items-center justify-center pt-5 pb-6">
-              {uploading ? (
+              {isUploading ? (
                 <>
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-2"></div>
                   <p className="text-sm text-gray-600">Subiendo imagen...</p>
@@ -193,7 +187,7 @@ export default function ImageUpload({ currentImageUrl, onImageUploaded, label = 
               className="hidden"
               accept="image/jpeg,image/jpg,image/png,image/webp"
               onChange={handleFileSelect}
-              disabled={uploading}
+              disabled={isUploading}
             />
           </label>
         </div>

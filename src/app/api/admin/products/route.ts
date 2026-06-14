@@ -5,6 +5,11 @@ import { ProductInput, ProductService } from '@/services/productService';
 const unauthorizedResponse = () =>
   NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
+const mapProductStatus = (product: Record<string, unknown>) => ({
+  ...product,
+  status: product.is_available ? 'Publicado' : 'Archivado'
+});
+
 export async function GET() {
   const admin = await getAuthenticatedAdmin();
   if (!admin) {
@@ -13,7 +18,8 @@ export async function GET() {
 
   try {
     const products = await ProductService.getAllAdminProducts();
-    return NextResponse.json(products);
+    const mappedProducts = products.map((product) => mapProductStatus(product));
+    return NextResponse.json(mappedProducts);
   } catch (error) {
     return NextResponse.json(
       {
@@ -32,9 +38,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = (await request.json()) as ProductInput;
-    const product = await ProductService.createProduct(body);
-    return NextResponse.json(product, { status: 201 });
+    const body = (await request.json()) as ProductInput & { status?: string };
+    const { status, ...restData } = body;
+    const payloadToInsert = {
+      ...restData,
+      is_available: status === 'Publicado'
+    };
+    const product = await ProductService.createProduct(payloadToInsert);
+    return NextResponse.json(mapProductStatus(product), { status: 201 });
   } catch (error) {
     return NextResponse.json(
       {

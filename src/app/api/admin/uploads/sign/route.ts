@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     const normalizedFolder = normalizeFolder(folder);
     const baseName = sanitizeSegment(String(fileName).replace(/\.[^.]+$/, '')) || 'image';
     const ext = getExtensionFromType(contentType);
-    const generatedFileName = `${crypto.randomUUID()}-${baseName}.${ext}`;
+    const generatedFileName = `${Date.now()}-${crypto.randomUUID()}-${baseName}.${ext}`;
     const path = normalizedFolder ? `${normalizedFolder}/${generatedFileName}` : generatedFileName;
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);

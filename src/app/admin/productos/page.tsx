@@ -2,17 +2,17 @@
 import React, { useState, useEffect } from 'react';
 import ImageUpload from '@/components/ImageUpload';
 
+type NumericValue = number | '';
+
 interface ProductVariant {
   id?: string;
   name: string;
   description?: string;
-  price: number;
-  stock_quantity: number;
+  price: NumericValue;
   sku?: string;
-  weight?: number;
+  weight?: NumericValue;
   unit?: string;
-  pieces?: number;
-  is_available: boolean;
+  pieces?: NumericValue;
 }
 
 interface Product {
@@ -28,10 +28,10 @@ interface Product {
   unit: string;
   main_image_url?: string;
   images?: string[];
-  is_available: boolean;
-  stock_quantity: number;
-  status: 'draft' | 'published' | 'archived';
-  featured: boolean;
+  status?: string;
+  is_available?: boolean;
+  featured?: boolean;
+  is_featured?: boolean;
   variants?: ProductVariant[];
   created_at: string;
   updated_at: string;
@@ -40,15 +40,23 @@ interface Product {
 interface ProductForm {
   name: string;
   description: string;
-  price: number;
+  price: NumericValue;
   farmer_id: string;
   category: string;
   unit: string;
   main_image_url: string;
-  is_available: boolean;
-  stock_quantity: number;
-  status: 'draft' | 'published' | 'archived';
-  featured: boolean;
+  status: string;
+  isFeatured: boolean;
+}
+
+class AdminApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'AdminApiError';
+    this.status = status;
+  }
 }
 
 export default function ProductsManagementPage() {
@@ -60,15 +68,13 @@ export default function ProductsManagementPage() {
   const [formData, setFormData] = useState<ProductForm>({
     name: '',
     description: '',
-    price: 0,
+    price: '',
     farmer_id: '',
     category: '',
     unit: 'kg',
     main_image_url: '',
-    is_available: true,
-    stock_quantity: 0,
-    status: 'published', // Cambiado de 'draft' a 'published'
-    featured: false
+    status: 'Publicado',
+    isFeatured: false,
   });
 
   // Estado para gestionar variantes
@@ -78,13 +84,11 @@ export default function ProductsManagementPage() {
   const [variantFormData, setVariantFormData] = useState<ProductVariant>({
     name: '',
     description: '',
-    price: 0,
-    stock_quantity: 0,
+    price: '',
     sku: '',
-    weight: 0,
+    weight: '',
     unit: 'kg',
-    pieces: 1,
-    is_available: true
+    pieces: '',
   });
 
   const categories = [
@@ -133,7 +137,7 @@ export default function ProductsManagementPage() {
 
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data?.message || data?.error || 'Error en API admin');
+      throw new AdminApiError(data?.message || data?.error || 'Error en API admin', response.status);
     }
     return data as T;
   };
@@ -169,7 +173,7 @@ export default function ProductsManagementPage() {
     e.preventDefault();
     try {
       // Construir payload de variantes: usar las existentes y añadir la variante en edición si procede
-      const toNumber = (val: any, integer: boolean = false) => {
+      const toNumber = (val: unknown, integer: boolean = false) => {
         if (val === null || val === undefined) return 0;
         const n = Number(val);
         if (!Number.isFinite(n)) return 0;
@@ -177,20 +181,33 @@ export default function ProductsManagementPage() {
       };
 
       const normalizeVariant = (v: any) => ({
-        ...v,
+        id: v.id,
+        name: String(v.name || ''),
+        description: v.description ? String(v.description) : null,
         price: toNumber(v.price),
-        stock_quantity: toNumber(v.stock_quantity, true),
+        sku: v.sku ? String(v.sku) : null,
         weight: v.weight !== undefined ? toNumber(v.weight) : undefined,
         pieces: v.pieces !== undefined ? toNumber(v.pieces, true) : undefined,
+        unit: v.unit ? String(v.unit) : null,
       });
 
       let variantsPayload = [...variants].map(normalizeVariant);
-      const isNewVariantPending = !editingVariant && showVariantForm && variantFormData.name.trim() && variantFormData.price > 0;
+      const isNewVariantPending = !editingVariant && showVariantForm && variantFormData.name.trim() && toNumber(variantFormData.price) > 0;
       if (isNewVariantPending) {
         variantsPayload.push(normalizeVariant({ ...variantFormData, id: undefined }));
       }
 
-      const payload = { ...formData, variants: variantsPayload } as any;
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        price: toNumber(formData.price),
+        farmer_id: formData.farmer_id,
+        category: formData.category,
+        unit: formData.unit,
+        main_image_url: formData.main_image_url,
+        status: formData.status,
+        variants: variantsPayload,
+      };
 
       if (editingProduct) {
         await adminApiRequest(`/products/${editingProduct.id}`, {
@@ -235,10 +252,8 @@ export default function ProductsManagementPage() {
       category: product.category,
       unit: product.unit,
       main_image_url: product.main_image_url || '',
-      is_available: product.is_available,
-      stock_quantity: product.stock_quantity,
-      status: product.status,
-      featured: product.featured
+      status: product.status || (product.is_available ? 'Publicado' : 'Archivado'),
+      isFeatured: Boolean(product.featured ?? product.is_featured ?? false),
     });
     
     // Cargar variantes del producto
@@ -254,7 +269,11 @@ export default function ProductsManagementPage() {
         await fetchProducts();
       } catch (error) {
         console.error('Error deleting product:', error);
-        alert('Error al eliminar el producto');
+        if (error instanceof AdminApiError && error.status === 409) {
+          alert(error.message);
+          return;
+        }
+        alert(error instanceof Error ? error.message : 'Error al eliminar el producto');
       }
     }
   };
@@ -273,21 +292,17 @@ export default function ProductsManagementPage() {
       category: '',
       unit: 'kg',
       main_image_url: '',
-      is_available: true,
-      stock_quantity: 0,
-      status: 'published',
-      featured: false
+      status: 'Publicado',
+      isFeatured: false,
     });
     setVariantFormData({
       name: '',
       description: '',
-      price: 0,
-      stock_quantity: 0,
+      price: '',
       sku: '',
-      weight: 0,
+      weight: '',
       unit: 'kg',
-      pieces: 1,
-      is_available: true
+      pieces: '',
     });
   };
 
@@ -297,13 +312,11 @@ export default function ProductsManagementPage() {
     setVariantFormData({
       name: '',
       description: '',
-      price: 0,
-      stock_quantity: 0,
+      price: '',
       sku: '',
-      weight: 0,
+      weight: '',
       unit: formData.unit,
-      pieces: 1,
-      is_available: true
+      pieces: '',
     });
     setShowVariantForm(true);
   };
@@ -321,17 +334,33 @@ export default function ProductsManagementPage() {
     }
 
     try {
+      const toNumber = (val: unknown, integer = false) => {
+        if (val === null || val === undefined || val === '') return 0;
+        const n = Number(val);
+        if (!Number.isFinite(n)) return 0;
+        return integer ? Math.trunc(n) : n;
+      };
+      const variantPayload = {
+        name: variantFormData.name,
+        description: variantFormData.description || null,
+        price: toNumber(variantFormData.price),
+        sku: variantFormData.sku || null,
+        weight: variantFormData.weight !== '' && variantFormData.weight !== undefined ? toNumber(variantFormData.weight) : null,
+        unit: variantFormData.unit || null,
+        pieces: variantFormData.pieces !== '' && variantFormData.pieces !== undefined ? toNumber(variantFormData.pieces, true) : null,
+      };
+
       if (editingVariant && editingVariant.id) {
         // Actualizar variante existente
         await adminApiRequest(`/variants/${editingVariant.id}`, {
           method: 'PUT',
-          body: JSON.stringify(variantFormData)
+          body: JSON.stringify(variantPayload)
         });
       } else {
         // Crear nueva variante
         await adminApiRequest(`/products/${editingProduct.id}/variants`, {
           method: 'POST',
-          body: JSON.stringify(variantFormData)
+          body: JSON.stringify(variantPayload)
         });
       }
       
@@ -344,13 +373,11 @@ export default function ProductsManagementPage() {
       setVariantFormData({
         name: '',
         description: '',
-        price: 0,
-        stock_quantity: 0,
+        price: '',
         sku: '',
-        weight: 0,
+        weight: '',
         unit: 'kg',
-        pieces: 1,
-        is_available: true
+        pieces: '',
       });
     } catch (error) {
       console.error('Error al guardar variante:', error);
@@ -378,20 +405,18 @@ export default function ProductsManagementPage() {
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      draft: 'bg-gray-100 text-gray-800',
-      published: 'bg-green-100 text-green-800',
-      archived: 'bg-red-100 text-red-800'
+      Publicado: 'bg-green-100 text-green-800',
+      Archivado: 'bg-red-100 text-red-800'
     };
     
     const labels = {
-      draft: 'Borrador',
-      published: 'Publicado',
-      archived: 'Archivado'
+      Publicado: 'Publicado',
+      Archivado: 'Archivado'
     };
 
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badges[status as keyof typeof badges]}`}>
-        {labels[status as keyof typeof labels]}
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badges[status as keyof typeof badges] || 'bg-gray-100 text-gray-800'}`}>
+        {labels[status as keyof typeof labels] || status}
       </span>
     );
   };
@@ -436,9 +461,6 @@ export default function ProductsManagementPage() {
                   Precio
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Stock
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Estado
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -461,7 +483,7 @@ export default function ProductsManagementPage() {
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">{product.name}</div>
                         <div className="text-sm text-gray-500">{product.category}</div>
-                        {product.featured && (
+                        {(product.featured || product.is_featured) && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
                             ⭐ Destacado
                           </span>
@@ -476,20 +498,7 @@ export default function ProductsManagementPage() {
                     €{product.price.toFixed(2)}/{product.unit}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{product.stock_quantity}</div>
-                    <div className={`text-xs ${product.stock_quantity < 10 ? 'text-red-500' : 'text-green-500'}`}>
-                      {product.stock_quantity < 10 ? 'Stock bajo' : 'Stock OK'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(product.status)}
-                    {!product.is_available && (
-                      <div className="mt-1">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-                          No disponible
-                        </span>
-                      </div>
-                    )}
+                    {getStatusBadge(product.status || (product.is_available ? 'Publicado' : 'Archivado'))}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
@@ -594,7 +603,7 @@ export default function ProductsManagementPage() {
                     </select>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Precio (€)</label>
                       <input
@@ -603,18 +612,7 @@ export default function ProductsManagementPage() {
                         min="0"
                         required
                         value={formData.price}
-                        onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value)})}
-                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Stock</label>
-                      <input
-                        type="number"
-                        min="0"
-                        required
-                        value={formData.stock_quantity}
-                        onChange={(e) => setFormData({...formData, stock_quantity: parseInt(e.target.value)})}
+                        onChange={(e) => setFormData({...formData, price: e.target.value === '' ? '' : Number(e.target.value)})}
                         className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
                       />
                     </div>
@@ -623,12 +621,11 @@ export default function ProductsManagementPage() {
                       <select
                         required
                         value={formData.status}
-                        onChange={(e) => setFormData({...formData, status: e.target.value as any})}
+                        onChange={(e) => setFormData({...formData, status: e.target.value})}
                         className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
                       >
-                        <option value="published">Publicado</option>
-                        <option value="draft">Borrador</option>
-                        <option value="archived">Archivado</option>
+                        <option value="Publicado">Publicado</option>
+                        <option value="Archivado">Archivado</option>
                       </select>
                     </div>
                   </div>
@@ -645,32 +642,17 @@ export default function ProductsManagementPage() {
                     />
                   </div>
 
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="is_available"
-                        checked={formData.is_available}
-                        onChange={(e) => setFormData({...formData, is_available: e.target.checked})}
-                        className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-                      />
-                      <label htmlFor="is_available" className="ml-2 block text-xs text-gray-900">
-                        Disponible
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="featured"
-                        checked={formData.featured}
-                        onChange={(e) => setFormData({...formData, featured: e.target.checked})}
-                        className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-                      />
-                      <label htmlFor="featured" className="ml-2 block text-xs text-gray-900">
-                        ⭐ Destacado
-                      </label>
-                    </div>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="isFeatured"
+                      checked={formData.isFeatured}
+                      onChange={(e) => setFormData({...formData, isFeatured: e.target.checked})}
+                      className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                    />
+                    <label htmlFor="isFeatured" className="ml-2 block text-xs text-gray-900">
+                      ⭐ Producto Destacado
+                    </label>
                   </div>
                 </div>
 
@@ -707,7 +689,7 @@ export default function ProductsManagementPage() {
                               <div className="flex-1">
                                 <p className="font-medium text-gray-800">{variant.name}</p>
                                 <p className="text-gray-600">
-                                  €{variant.price.toFixed(2)} | Stock: {variant.stock_quantity}
+                                  €{Number(variant.price || 0).toFixed(2)}
                                   {variant.weight && ` | ${variant.weight}${variant.unit}`}
                                 </p>
                               </div>
@@ -777,16 +759,7 @@ export default function ProductsManagementPage() {
                         type="number"
                         step="0.01"
                         value={variantFormData.price}
-                        onChange={(e) => setVariantFormData({...variantFormData, price: parseFloat(e.target.value)})}
-                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Stock</label>
-                      <input
-                        type="number"
-                        value={variantFormData.stock_quantity}
-                        onChange={(e) => setVariantFormData({...variantFormData, stock_quantity: parseInt(e.target.value)})}
+                        onChange={(e) => setVariantFormData({...variantFormData, price: e.target.value === '' ? '' : Number(e.target.value)})}
                         className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
                       />
                     </div>
@@ -796,7 +769,7 @@ export default function ProductsManagementPage() {
                         type="number"
                         step="0.01"
                         value={variantFormData.weight}
-                        onChange={(e) => setVariantFormData({...variantFormData, weight: parseFloat(e.target.value)})}
+                        onChange={(e) => setVariantFormData({...variantFormData, weight: e.target.value === '' ? '' : Number(e.target.value)})}
                         className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
                       />
                     </div>
@@ -805,7 +778,7 @@ export default function ProductsManagementPage() {
                       <input
                         type="number"
                         value={variantFormData.pieces}
-                        onChange={(e) => setVariantFormData({...variantFormData, pieces: parseInt(e.target.value)})}
+                        onChange={(e) => setVariantFormData({...variantFormData, pieces: e.target.value === '' ? '' : Number(e.target.value)})}
                         className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
                       />
                     </div>
