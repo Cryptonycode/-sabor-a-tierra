@@ -192,7 +192,7 @@ export default function CartSidebar() {
 
             {/* Envío gratis */}
             <div className="text-center text-sm text-gray-600 pt-2 border-t">
-              🚚 Envío gratis en pedidos superiores a 50€
+              🚚 Consuma frutas y verduras de productores españoles
             </div>
           </div>
         )}
