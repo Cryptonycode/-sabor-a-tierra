@@ -91,7 +91,7 @@ export default function ProductPage() {
     setIsAdding(true);
 
     const productToAdd: Product = {
-      id: `${product.id}-${currentVariant.id}`,
+      id: `${String(product.id)}-${String(currentVariant.id)}`,
       productId: String(product.id),
       variantId: String(currentVariant.id),
       name: `${product.name} - ${currentVariant.name}`,
@@ -100,7 +100,7 @@ export default function ProductPage() {
       unit: product.unit,
       category: product.category,
       weight: currentVariant.weight || 0, // Peso de la variante en kg
-    } as any;
+    };
 
     addToCart(productToAdd, quantity);
 
@@ -252,7 +252,7 @@ export default function ProductPage() {
                 </button>
 
                 <button 
-                  onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Hola, estoy interesado en ${product.name}`)}`, '_blank')}
+                  onClick={() => window.open(`https://wa.me/34644551584?text=${encodeURIComponent(`Hola, estoy interesado en ${product.name}`)}`, '_blank')}
                   className="w-full py-2 px-4 border-2 border-green-500 text-green-600 font-medium text-sm rounded-lg hover:bg-green-50 transition-colors flex items-center justify-center space-x-2"
                 >
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">

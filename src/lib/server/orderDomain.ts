@@ -261,11 +261,20 @@ export const getOrderById = async (orderId: string) => {
   }
 
   const [{ data: items }, { data: timeline }] = await Promise.all([
-    supabaseAdmin.from('order_items').select('*').eq('order_id', orderId).order('created_at', { ascending: true }),
+    supabaseAdmin
+      .from('order_items')
+      .select('*, products(main_image_url)')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: true }),
     supabaseAdmin.from('order_timeline').select('*').eq('order_id', orderId).order('created_at', { ascending: true })
   ]);
 
-  return mapOrderForClient(order as OrderRow, (items || []) as OrderItem[], (timeline || []) as OrderTimelineEntry[]);
+  const mappedItems = (items || []).map((item) => ({
+    ...item,
+    product_image: item.products?.main_image_url || item.product_image_url || null
+  }));
+
+  return mapOrderForClient(order as OrderRow, mappedItems as OrderItem[], (timeline || []) as OrderTimelineEntry[]);
 };
 
 export const getAdminOrders = async (params: { status?: string; page?: number; limit?: number }) => {

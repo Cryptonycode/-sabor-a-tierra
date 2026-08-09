@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useCart } from '@/context/CartContext';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,6 +19,7 @@ export default function CheckoutPage() {
   const [mode, setMode] = useState<'choose' | 'guest' | 'login'>('choose');
   const [loginEmail, setLoginEmail] = useState('');
   const [magicSentTo, setMagicSentTo] = useState<string | null>(null);
+  const orderCompletedRef = useRef(false);
   const [formData, setFormData] = useState<Omit<CheckoutPayload, 'items' | 'subtotal' | 'shipping_cost' | 'tax_amount' | 'total_amount'>>({
     customer_info: {
       first_name: '',
@@ -40,7 +41,7 @@ export default function CheckoutPage() {
   // Redirigir si el carrito está vacío, esperando a que cargue
   useEffect(() => {
     if (isLoading) return;
-    if (cart.items.length === 0) {
+    if (cart.items.length === 0 && !orderCompletedRef.current) {
       router.push('/productos');
     }
     // Recuperar descuento aplicado desde el sidebar (si existe)
@@ -172,7 +173,7 @@ export default function CheckoutPage() {
 
       const orderData = {
         items: cart.items.map(item => ({
-          product_id: String(item.id),
+          product_id: String(item.productId || item.id),
           quantity: item.quantity,
           unit_price: item.price
         })),
@@ -190,7 +191,8 @@ export default function CheckoutPage() {
       const order = await orderService.create(orderData);
       const orderId: string = order.id;
 
-      // Redirigir a página de confirmación (la limpieza del carrito se hará allí)
+      orderCompletedRef.current = true;
+      clearCart();
       router.push(`/order-confirmation/${orderId}`);
 
     } catch (error) {

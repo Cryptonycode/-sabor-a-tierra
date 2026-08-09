@@ -10,9 +10,7 @@ export default function CartPage() {
 
   const handleCheckout = () => {
     console.log('Checkout iniciado desde página:', cart);
-    // Aquí se integrará la pasarela de pago en el futuro
-    // Por ahora, redirigir a página de gracias
-    router.push('/gracias');
+    router.push('/checkout');
   };
 
   const handleClearCart = () => {
@@ -21,7 +19,7 @@ export default function CartPage() {
     }
   };
 
-  // Calcular descuentos y envío
+  // Calcular envío
   const subtotal = cart.totalPrice;
   
   // Calcular envío basado en peso total
@@ -41,8 +39,7 @@ export default function CartPage() {
     shippingCost = 4.45;
   }
   
-  const discount = subtotal >= 100 ? subtotal * 0.05 : 0; // 5% descuento si > 100€
-  const total = subtotal + shippingCost - discount;
+  const total = subtotal + shippingCost;
 
   return (
     <>
@@ -157,15 +154,6 @@ export default function CartPage() {
                       </span>
                     </div>
                     
-                    {discount > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Descuento (5%):</span>
-                        <span className="font-medium text-green-600">
-                          -{discount.toFixed(2)}€
-                        </span>
-                      </div>
-                    )}
-                    
                     <div className="border-t pt-4">
                       <div className="flex justify-between items-center">
                         <span className="text-lg font-bold text-gray-800">Total:</span>
@@ -186,20 +174,6 @@ export default function CartPage() {
 
                   {/* Información adicional */}
                   <div className="space-y-3 text-sm text-gray-600">
-                    <div className="flex items-start space-x-2">
-                      <svg className="w-4 h-4 mt-0.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                      <span>Envío gratis en pedidos superiores a 50€</span>
-                    </div>
-                    
-                    <div className="flex items-start space-x-2">
-                      <svg className="w-4 h-4 mt-0.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                      <span>Descuento del 5% en pedidos superiores a 100€</span>
-                    </div>
-                    
                     <div className="flex items-start space-x-2">
                       <svg className="w-4 h-4 mt-0.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />

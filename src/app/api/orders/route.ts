@@ -6,6 +6,7 @@ export async function POST(request: Request) {
     console.log("📥 [API ORDERS] Recibiendo petición...");
     
     const body = await request.json();
+    console.log("Payload recibido en API:", body);
     console.log("📦 [API ORDERS] Datos recibidos:", JSON.stringify(body).substring(0, 200) + '...');
 
     const order = await createOrderFromCheckout(body);

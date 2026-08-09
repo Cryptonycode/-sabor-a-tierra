@@ -2,9 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCart } from '@/context/CartContext';
 import { orderService } from '@/services/orderService';
 import { Order } from '@/types/order';
+
+const COMPANY_PHONE = '644 55 15 84';
+const WHATSAPP_NUMBER = '34644551584';
+const PRODUCT_IMAGE_BUCKET = 'productos';
+const PRODUCT_PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=80&h=80&fit=crop';
 
 export default function OrderConfirmationPage() {
   const params = useParams();
@@ -70,6 +76,18 @@ export default function OrderConfirmationPage() {
       cancelled: 'text-red-600'
     };
     return colors[status as keyof typeof colors] || 'text-gray-600';
+  };
+
+  const formatProductImageUrl = (imagePath?: string | null) => {
+    if (!imagePath) return PRODUCT_PLACEHOLDER_IMAGE;
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
+    if (imagePath.startsWith('/')) return imagePath;
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, '');
+    if (!supabaseUrl) return PRODUCT_PLACEHOLDER_IMAGE;
+
+    const normalizedPath = imagePath.replace(/^\/+/, '');
+    return `${supabaseUrl}/storage/v1/object/public/${PRODUCT_IMAGE_BUCKET}/${normalizedPath}`;
   };
 
   if (loading) {
@@ -161,9 +179,8 @@ export default function OrderConfirmationPage() {
                       <button
                         className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-md"
                         onClick={() => {
-                          const whatsappNumber = '34600000000'; // Número de WhatsApp de la empresa
                           const message = `Hola, he realizado el pago del pedido ${order.order_number} por un importe de €${order.total_amount.toFixed(2)} mediante transferencia bancaria. Adjunto comprobante.`;
-                          const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+                          const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
                           window.open(whatsappUrl, '_blank');
                         }}
                       >
@@ -182,7 +199,7 @@ export default function OrderConfirmationPage() {
                       </h4>
                       <div className="bg-gray-50 rounded p-3 mb-3">
                         <p className="text-center font-mono font-bold text-3xl text-primary mb-3">
-                          600 000 000
+                          {COMPANY_PHONE}
                         </p>
                       </div>
                       <div className="space-y-2 text-sm mb-3">
@@ -205,9 +222,8 @@ export default function OrderConfirmationPage() {
                       <button
                         className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-md"
                         onClick={() => {
-                          const whatsappNumber = '34600000000'; // Número de WhatsApp de la empresa
                           const message = `Hola, he realizado el pago del pedido ${order.order_number} por un importe de €${order.total_amount.toFixed(2)} mediante Bizum. Adjunto comprobante.`;
-                          const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+                          const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
                           window.open(whatsappUrl, '_blank');
                         }}
                       >
@@ -272,9 +288,11 @@ export default function OrderConfirmationPage() {
                 <div className="space-y-4">
                   {order.items.map((item) => (
                     <div key={item.id} className="flex items-center space-x-4 py-3 border-b last:border-b-0">
-                      <img
-                        src={item.product_image || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=80&h=80&fit=crop'}
+                      <Image
+                        src={formatProductImageUrl(item.products?.main_image_url || item.product_image)}
                         alt={item.product_name}
+                        width={64}
+                        height={64}
                         className="w-16 h-16 object-cover rounded-lg"
                       />
                       <div className="flex-1">
@@ -370,7 +388,7 @@ export default function OrderConfirmationPage() {
                 </p>
                 <div className="space-y-1 text-sm text-blue-800">
                   <p>📧 info@saboratierra.com</p>
-                  <p>📞 +34 900 123 456</p>
+                  <p>📞 {COMPANY_PHONE}</p>
                   <p>🕒 L-V: 9:00 - 18:00</p>
                 </div>
               </div>

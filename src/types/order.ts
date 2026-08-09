@@ -31,6 +31,10 @@ export interface OrderItem {
   product_id: string;
   product_name: string;
   product_image?: string | null;
+  product_image_url?: string | null;
+  products?: {
+    main_image_url?: string | null;
+  } | null;
   farmer_name: string;
   quantity: number;
   unit_price: number;

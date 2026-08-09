@@ -31,7 +31,7 @@ export default function ProductCard({ id, name, price, imageUrl, main_image_url,
     setIsAdding(true);
     
     const product: Product = {
-      id: typeof id === 'string' ? parseInt(id) : id,
+      id: String(id),
       name,
       price,
       imageUrl: imageSrc,
