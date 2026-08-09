@@ -55,6 +55,11 @@ export default function Footer() {
                   Política de Cookies
                 </Link>
               </li>
+              <li>
+                <Link href="/politica-reembolso" className="text-gray-300 hover:text-white transition-colors">
+                  Política de Reembolso
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -62,9 +67,9 @@ export default function Footer() {
           <div>
             <h4 className="text-lg font-semibold mb-4">Contacto</h4>
             <ul className="space-y-2 text-gray-300">
-              <li>Email: info@saboratierra.com</li>
-              <li>Teléfono: +34 900 123 456</li>
-              <li>Dirección: Calle Principal 123, Madrid</li>
+              <li>Email: saboratierra25@gmail.com</li>
+              <li>Teléfono: 644 55 15 84</li>
+              <li>Dirección: C/ Travesía reñidero, 29. Motril</li>
             </ul>
           </div>
         </div>
