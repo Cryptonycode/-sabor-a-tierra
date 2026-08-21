@@ -90,6 +90,18 @@ export default function OrderConfirmationPage() {
     return `${supabaseUrl}/storage/v1/object/public/${PRODUCT_IMAGE_BUCKET}/${normalizedPath}`;
   };
 
+  const getOrderItemName = (item: Order['items'][number]) => {
+    const variantName = item.product_variants?.name;
+
+    if (variantName) {
+      return `${item.products?.name || item.product_name} - ${variantName}`;
+    }
+
+    // Sin variante relacionada, product_name es el nombre guardado en el
+    // momento de la compra y ya incluye la variante si la hubo.
+    return item.product_name || item.products?.name || 'Producto';
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -286,27 +298,33 @@ export default function OrderConfirmationPage() {
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Detalles del Pedido</h2>
                 
                 <div className="space-y-4">
-                  {order.items.map((item) => (
-                    <div key={item.id} className="flex items-center space-x-4 py-3 border-b last:border-b-0">
-                      <Image
-                        src={formatProductImageUrl(item.products?.main_image_url || item.product_image)}
-                        alt={item.product_name}
-                        width={64}
-                        height={64}
-                        className="w-16 h-16 object-cover rounded-lg"
-                      />
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{item.product_name}</h3>
-                        <p className="text-sm text-gray-600">por {item.farmer_name}</p>
-                        <p className="text-sm text-gray-500">
-                          Cantidad: {item.quantity} x €{item.unit_price.toFixed(2)}
-                        </p>
+                  {order.items.map((item) => {
+                    const itemName = getOrderItemName(item);
+
+                    return (
+                      <div key={item.id} className="flex items-center space-x-4 py-3 border-b last:border-b-0">
+                        <Image
+                          src={formatProductImageUrl(
+                            item.products?.main_image_url || item.product_image || item.product_image_url
+                          )}
+                          alt={itemName}
+                          width={64}
+                          height={64}
+                          className="w-16 h-16 object-cover rounded-lg"
+                        />
+                        <div className="flex-1">
+                          <h3 className="font-medium text-gray-900">{itemName}</h3>
+                          <p className="text-sm text-gray-600">por {item.farmer_name}</p>
+                          <p className="text-sm text-gray-500">
+                            Cantidad: {item.quantity} x €{item.unit_price.toFixed(2)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-semibold text-gray-900">€{item.total_price.toFixed(2)}</div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-gray-900">€{item.total_price.toFixed(2)}</div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -339,11 +357,11 @@ export default function OrderConfirmationPage() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
-                    <span>€{(order.total_amount - 4.99).toFixed(2)}</span>
+                    <span>€{order.subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Envío:</span>
-                    <span>€4.99</span>
+                    <span>€{order.shipping_cost.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-xs text-gray-500 italic">
                     <span>IVA 4% (incluido)</span>

@@ -4,8 +4,10 @@ export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded';
 export interface CheckoutPayload {
   items: Array<{
     product_id: string;
+    variant_id?: string | null;
     quantity: number;
-    unit_price: number;
+    // Solo informativo: el backend recalcula el precio desde la base de datos.
+    unit_price?: number;
   }>;
   customer_info: {
     first_name: string;
@@ -29,11 +31,21 @@ export interface OrderItem {
   id: string;
   order_id: string;
   product_id: string;
+  variant_id?: string | null;
   product_name: string;
   product_image?: string | null;
   product_image_url?: string | null;
   products?: {
+    id?: string;
+    name?: string | null;
     main_image_url?: string | null;
+  } | null;
+  product_variants?: {
+    id?: string;
+    name?: string | null;
+    price?: number | null;
+    weight?: number | null;
+    unit?: string | null;
   } | null;
   farmer_name: string;
   quantity: number;

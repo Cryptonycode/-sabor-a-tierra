@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { discountService } from '@/services/discountService';
 import { orderService } from '@/services/orderService';
+import { calculateShippingCostForLines } from '@/lib/shipping';
 import { CheckoutPayload } from '@/types/order';
 
 export default function CheckoutPage() {
@@ -108,30 +109,7 @@ export default function CheckoutPage() {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
-  const calculateShipping = (): number => {
-    // Calcular peso total del carrito (kg)
-    const totalWeight = cart.items.reduce((total, item) => {
-      const itemWeight = item.weight || 0;
-      return total + (itemWeight * item.quantity);
-    }, 0);
-
-    // Tabla de precios según peso (sin envío gratis por subtotal)
-    // 0-4 kg: 3,90 €
-    // 4-10 kg: 4,45 €
-    // 10-15 kg: 5,90 €
-    // Más de 15 kg: 10,95 € (sin límite de peso)
-    
-    if (totalWeight <= 4) {
-      return 3.90;
-    } else if (totalWeight <= 10) {
-      return 4.45;
-    } else if (totalWeight <= 15) {
-      return 5.90;
-    } else {
-      // Más de 15kg: tarifa plana de 10,95€ sin límite de peso
-      return 10.95;
-    }
-  };
+  const calculateShipping = (): number => calculateShippingCostForLines(cart.items);
 
   const getDiscountAmount = () => {
     if (!appliedDiscount) return 0;
@@ -174,6 +152,7 @@ export default function CheckoutPage() {
       const orderData = {
         items: cart.items.map(item => ({
           product_id: String(item.productId || item.id),
+          variant_id: item.variantId ? String(item.variantId) : null,
           quantity: item.quantity,
           unit_price: item.price
         })),

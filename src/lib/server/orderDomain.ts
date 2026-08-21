@@ -1,12 +1,34 @@
 import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
 import { markDiscountCodeAsUsed, validateDiscountCode } from '@/lib/server/discounts';
+import { calculateShippingCostForLines, ShippableLine } from '@/lib/shipping';
 import { CheckoutPayload, Order, OrderItem, OrderTimelineEntry, OrderStatus, PaymentStatus } from '@/types/order';
 
 type CheckoutItemInput = {
   product_id: string;
+  variant_id?: string | null;
   quantity: number;
   unit_price?: number;
 };
+
+type OrderItemInsert = {
+  order_id: string;
+  product_id: string;
+  variant_id: string | null;
+  product_name: string;
+  product_image_url: string | null;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  farmer_name: string;
+};
+
+const UUID_LENGTH = 36;
+
+const ORDER_ITEMS_SELECT = '*, products(*), product_variants(*)';
+
+// Las columnas de importe son DECIMAL(10,2): evita arrastrar errores binarios
+// al sumar líneas y aplicar descuentos.
+const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
 const generateOrderNumber = () => {
   const year = new Date().getFullYear();
@@ -94,51 +116,157 @@ const findOrCreateCustomer = async (
   return inserted.id;
 };
 
+// El carrito identifica cada línea como `${productId}-${variantId}`. Si el
+// cliente no manda variant_id (carritos guardados por versiones anteriores),
+// lo recuperamos de ese id compuesto para no perder la variante.
+const parseItemIdentifiers = (item: CheckoutItemInput) => {
+  const rawId = String(item.product_id || '');
+  const isCompositeId = rawId.length > UUID_LENGTH;
+
+  const productId = isCompositeId ? rawId.slice(0, UUID_LENGTH) : rawId;
+  const embeddedVariantId = isCompositeId ? rawId.slice(UUID_LENGTH + 1) : '';
+  const explicitVariantId = item.variant_id ? String(item.variant_id) : '';
+
+  return {
+    productId,
+    variantId: explicitVariantId || embeddedVariantId || null
+  };
+};
+
+// Fuente única de verdad del precio: nunca se confía en el unit_price que
+// llega del navegador, siempre se resuelve contra la base de datos.
+const resolveLinePricing = async (productId: string, variantId: string | null) => {
+  const { data: product, error: productError } = await supabaseAdmin
+    .from('products')
+    .select('id, name, price, main_image_url, is_available')
+    .eq('id', productId)
+    .maybeSingle();
+
+  if (productError) {
+    console.error(`❌ DB Error buscando producto ${productId}:`, productError);
+    throw new Error(`Error de BD con el producto ${productId}: ${productError.message}`);
+  }
+
+  if (!product) {
+    throw new Error(`El producto con ID ${productId} no existe en la base de datos.`);
+  }
+
+  if (product.is_available !== true) {
+    throw new Error(`El producto "${product.name}" ya no está disponible para su compra.`);
+  }
+
+  const productImageUrl = product.main_image_url ?? null;
+
+  if (!variantId) {
+    return {
+      variantId: null,
+      productName: product.name as string,
+      productImageUrl,
+      unitPrice: Number(product.price),
+      // Sin variante no hay peso: ProductCard tampoco lo añade al carrito, y
+      // products.weight_per_unit no debe usarse aquí o el envío calculado
+      // dejaría de coincidir con el que vio el cliente.
+      weight: 0
+    };
+  }
+
+  const { data: variant, error: variantError } = await supabaseAdmin
+    .from('product_variants')
+    .select('id, product_id, name, price, is_active, weight')
+    .eq('id', variantId)
+    .maybeSingle();
+
+  if (variantError) {
+    console.error(`❌ DB Error buscando variante ${variantId}:`, variantError);
+    throw new Error(`Error de BD con la variante ${variantId}: ${variantError.message}`);
+  }
+
+  if (!variant) {
+    throw new Error(`La variante con ID ${variantId} no existe en la base de datos.`);
+  }
+
+  if (variant.product_id !== productId) {
+    throw new Error(`La variante "${variant.name}" no pertenece al producto "${product.name}".`);
+  }
+
+  if (variant.is_active !== true) {
+    throw new Error(`La variante "${variant.name}" ya no está disponible para su compra.`);
+  }
+
+  return {
+    variantId: variant.id as string,
+    productName: `${product.name} - ${variant.name}`,
+    productImageUrl,
+    unitPrice: Number(variant.price),
+    // Mismo origen de peso que usa el carrito al añadir la variante.
+    weight: Number(variant.weight) || 0
+  };
+};
+
 const getOrderItemsData = async (items: CheckoutItemInput[], orderId: string) => {
-  const orderItems = [];
+  const orderItems: OrderItemInsert[] = [];
+  const shippableLines: ShippableLine[] = [];
   let subtotal = 0;
 
   for (const item of items) {
-    const realProductId = item.product_id.length > 36 
-      ? item.product_id.substring(0, 36) 
-      : item.product_id;
-
-    const { data: product, error } = await supabaseAdmin
-      .from('products')
-      .select('id, name, price, is_available')
-      .eq('id', realProductId)
-      .maybeSingle();
-
-    if (error) {
-      console.error(`❌ DB Error buscando producto ${realProductId}:`, error);
-      throw new Error(`Error de BD con el producto ${realProductId}: ${error.message}`);
+    const quantity = Number(item.quantity);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error(`Cantidad inválida (${item.quantity}) para el producto ${item.product_id}.`);
     }
 
-    if (!product) {
-      throw new Error(`El producto con ID ${realProductId} no existe en la base de datos.`);
+    const { productId, variantId } = parseItemIdentifiers(item);
+    const { productName, productImageUrl, unitPrice, weight, variantId: resolvedVariantId } =
+      await resolveLinePricing(productId, variantId);
+
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+      throw new Error(`El producto "${productName}" no tiene un precio válido configurado.`);
     }
 
-    if (product.is_available !== true) {
-      throw new Error(`El producto "${product.name}" ya no está disponible para su compra.`);
-    }
-
-    const unitPrice = Number(product.price ?? item.unit_price ?? 0);
-    const totalPrice = unitPrice * item.quantity;
-    subtotal += totalPrice;
+    const totalPrice = roundCurrency(unitPrice * quantity);
+    subtotal = roundCurrency(subtotal + totalPrice);
+    shippableLines.push({ weight, quantity });
 
     orderItems.push({
       order_id: orderId,
-      product_id: realProductId,
-      product_name: product.name,
-      quantity: item.quantity,
+      product_id: productId,
+      variant_id: resolvedVariantId,
+      product_name: productName,
+      product_image_url: productImageUrl,
+      quantity,
       unit_price: unitPrice,
       total_price: totalPrice,
-      // 👇 AQUÍ ESTÁ LA SOLUCIÓN. La base de datos EXIGE un texto aquí 👇
-      farmer_name: 'Sabor a Tierra' 
+      // La columna es NOT NULL en la base de datos.
+      farmer_name: 'Sabor a Tierra'
     });
   }
 
-  return { orderItems, subtotal };
+  return { orderItems, subtotal, shippableLines };
+};
+
+// Degrada sin romper el pedido si todavía no se aplicó
+// ORDER_ITEMS_VARIANTS_UPDATE.sql: el nombre y el precio de la variante ya
+// viajan en el snapshot de product_name / unit_price.
+const insertOrderItems = async (orderItems: OrderItemInsert[]) => {
+  const { error } = await supabaseAdmin.from('order_items').insert(orderItems);
+  if (!error) return;
+
+  const missingVariantColumn = error.message.includes('variant_id');
+  if (!missingVariantColumn) {
+    console.error('❌ DB Error (order_items):', error);
+    throw new Error(`No se pudieron guardar los productos del pedido: ${error.message}`);
+  }
+
+  console.warn(
+    '⚠️ order_items.variant_id no disponible. Ejecuta ORDER_ITEMS_VARIANTS_UPDATE.sql en Supabase.'
+  );
+
+  const withoutVariant = orderItems.map(({ variant_id: _variantId, ...rest }) => rest);
+  const { error: retryError } = await supabaseAdmin.from('order_items').insert(withoutVariant);
+
+  if (retryError) {
+    console.error('❌ DB Error (order_items sin variante):', retryError);
+    throw new Error(`No se pudieron guardar los productos del pedido: ${retryError.message}`);
+  }
 };
 
 export const createOrderFromCheckout = async (payload: CheckoutPayload) => {
@@ -184,8 +312,8 @@ export const createOrderFromCheckout = async (payload: CheckoutPayload) => {
       throw new Error(`No se pudo crear la orden: ${orderInsertError?.message || 'Error desconocido'}`);
     }
 
-    const { orderItems, subtotal } = await getOrderItemsData(payload.items, insertedOrder.id);
-    const shippingCost = subtotal > 50 ? 0 : subtotal <= 4 ? 3.9 : subtotal <= 10 ? 4.45 : subtotal <= 15 ? 5.9 : 10.95;
+    const { orderItems, subtotal, shippableLines } = await getOrderItemsData(payload.items, insertedOrder.id);
+    const shippingCost = calculateShippingCostForLines(shippableLines);
 
     let discountAmount = 0;
     let discountCodeUsed: string | null = null;
@@ -202,20 +330,16 @@ export const createOrderFromCheckout = async (payload: CheckoutPayload) => {
       }
 
       if (typeof validation.percentage === 'number') {
-        discountAmount = (subtotal * validation.percentage) / 100;
+        discountAmount = roundCurrency((subtotal * validation.percentage) / 100);
         discountCodeUsed = payload.discountCode;
       }
     }
 
-    const finalSubtotal = Math.max(0, subtotal - discountAmount);
-    const totalAmount = finalSubtotal + shippingCost;
+    const finalSubtotal = roundCurrency(Math.max(0, subtotal - discountAmount));
+    const totalAmount = roundCurrency(finalSubtotal + shippingCost);
 
     if (orderItems.length > 0) {
-      const { error: itemError } = await supabaseAdmin.from('order_items').insert(orderItems);
-      if (itemError) {
-        console.error("❌ DB Error (order_items):", itemError);
-        throw new Error(`No se pudieron guardar los productos del pedido: ${itemError.message}`);
-      }
+      await insertOrderItems(orderItems);
     }
 
     const { error: updateOrderError } = await supabaseAdmin
@@ -249,6 +373,36 @@ export const createOrderFromCheckout = async (payload: CheckoutPayload) => {
   }
 };
 
+// Si la relación order_items -> product_variants aún no existe, PostgREST
+// rechaza el join entero. Reintentamos sin variantes para no dejar el pedido
+// sin líneas visibles.
+const fetchOrderItems = async (orderId: string) => {
+  const { data, error } = await supabaseAdmin
+    .from('order_items')
+    .select(ORDER_ITEMS_SELECT)
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: true });
+
+  if (!error) {
+    return data || [];
+  }
+
+  console.error('⚠️ Join de variantes no disponible en order_items:', error.message);
+
+  const { data: fallbackData, error: fallbackError } = await supabaseAdmin
+    .from('order_items')
+    .select('*, products(*)')
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: true });
+
+  if (fallbackError) {
+    console.error('❌ DB Error (order_items select):', fallbackError);
+    return [];
+  }
+
+  return fallbackData || [];
+};
+
 export const getOrderById = async (orderId: string) => {
   const { data: order, error } = await supabaseAdmin
     .from('orders')
@@ -260,16 +414,12 @@ export const getOrderById = async (orderId: string) => {
     return null;
   }
 
-  const [{ data: items }, { data: timeline }] = await Promise.all([
-    supabaseAdmin
-      .from('order_items')
-      .select('*, products(main_image_url)')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: true }),
+  const [items, { data: timeline }] = await Promise.all([
+    fetchOrderItems(orderId),
     supabaseAdmin.from('order_timeline').select('*').eq('order_id', orderId).order('created_at', { ascending: true })
   ]);
 
-  const mappedItems = (items || []).map((item) => ({
+  const mappedItems = items.map((item) => ({
     ...item,
     product_image: item.products?.main_image_url || item.product_image_url || null
   }));

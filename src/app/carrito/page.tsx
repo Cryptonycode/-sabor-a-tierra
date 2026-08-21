@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import CartItem from '@/components/CartItem';
+import { calculateShippingCostForLines } from '@/lib/shipping';
 
 export default function CartPage() {
   const router = useRouter();
@@ -19,26 +20,8 @@ export default function CartPage() {
     }
   };
 
-  // Calcular envío
   const subtotal = cart.totalPrice;
-  
-  // Calcular envío basado en peso total
-  const totalWeight = cart.items.reduce((total, item) => {
-    const itemWeight = item.weight || 0;
-    return total + (itemWeight * item.quantity);
-  }, 0);
-  
-  // Tabla de precios según peso
-  // 0-4 kg: 3,90 € | 4-10 kg: 4,45 € | 10-15 kg: 5,90 € | +15 kg: 10,95 €
-  let shippingCost = 3.90;
-  if (totalWeight > 15) {
-    shippingCost = 10.95;
-  } else if (totalWeight > 10) {
-    shippingCost = 5.90;
-  } else if (totalWeight > 4) {
-    shippingCost = 4.45;
-  }
-  
+  const shippingCost = calculateShippingCostForLines(cart.items);
   const total = subtotal + shippingCost;
 
   return (
