@@ -49,6 +49,14 @@ export const customerService = {
     return response.json();
   },
 
+  async getSession(token?: string) {
+    const response = await fetch('/api/auth/session', {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      credentials: 'include'
+    });
+    return response.json();
+  },
+
   async getMe(token?: string) {
     const response = await fetch('/api/customers/me', {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,

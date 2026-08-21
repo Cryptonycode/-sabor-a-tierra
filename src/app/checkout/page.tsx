@@ -23,6 +23,8 @@ export default function CheckoutPage() {
   const [magicSentTo, setMagicSentTo] = useState<string | null>(null);
   const [magicLinkLoading, setMagicLinkLoading] = useState(false);
   const [magicLinkError, setMagicLinkError] = useState<string | null>(null);
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const orderCompletedRef = useRef(false);
   const [formData, setFormData] = useState<Omit<CheckoutPayload, 'items' | 'subtotal' | 'shipping_cost' | 'tax_amount' | 'total_amount'>>({
     customer_info: {
@@ -88,62 +90,105 @@ export default function CheckoutPage() {
     }
   };
 
-  const applyCustomerToForm = (customer: Record<string, any>) => {
+  const applySessionToForm = (email: string, customer: Record<string, any> | null) => {
     setFormData(prev => ({
       ...prev,
       customer_info: {
-        first_name: customer.first_name || prev.customer_info.first_name,
-        last_name: customer.last_name || prev.customer_info.last_name,
-        email: customer.email || prev.customer_info.email,
-        phone: customer.phone || prev.customer_info.phone
+        first_name: customer?.first_name || prev.customer_info.first_name,
+        last_name: customer?.last_name || prev.customer_info.last_name,
+        email: email || customer?.email || prev.customer_info.email,
+        phone: customer?.phone || prev.customer_info.phone
       },
       delivery_address: {
         ...prev.delivery_address,
-        address: customer.default_shipping_address || prev.delivery_address.address,
-        city: customer.default_shipping_city || prev.delivery_address.city,
-        postal_code: customer.default_shipping_postal_code || prev.delivery_address.postal_code,
-        province: customer.default_shipping_province || prev.delivery_address.province
+        address: customer?.default_shipping_address || prev.delivery_address.address,
+        city: customer?.default_shipping_city || prev.delivery_address.city,
+        postal_code: customer?.default_shipping_postal_code || prev.delivery_address.postal_code,
+        province: customer?.default_shipping_province || prev.delivery_address.province
       }
     }));
   };
 
-  // Retorno del enlace mágico: Supabase devuelve la sesión en el hash de la
-  // URL. Se guarda como `customer_token`, que es la clave que leen
-  // customerService y las rutas /api/customers/*.
+  // Se comprueba la sesión en cada carga, no solo al volver del enlace: si el
+  // token sigue vivo en localStorage el checkout debe reconocer al cliente.
+  const loadCustomerSession = async (token: string, cameFromMagicLink: boolean) => {
+    try {
+      const response = await customerService.getSession(token);
+
+      if (!response?.success || !response?.email) {
+        // Token caducado o inválido: se descarta para no dejar una sesión fantasma.
+        try {
+          localStorage.removeItem('customer_token');
+        } catch {}
+        return;
+      }
+
+      setCustomerEmail(response.email);
+      applySessionToForm(response.email, response.customer);
+      setMode('guest');
+
+      // Solo se salta al paso 2 tras usar el enlace, y únicamente si ya no
+      // falta nada del paso 1. En una recarga normal no se mueve al usuario.
+      const hasName = !!(response.customer?.first_name && response.customer?.last_name);
+      if (cameFromMagicLink && hasName) {
+        setCurrentStep(2);
+      }
+    } catch {
+      // Sin conexión no se puede confirmar la sesión: el checkout sigue como invitado.
+    }
+  };
+
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.location.hash) return;
+    if (typeof window === 'undefined') return;
 
     const hashParams = new URLSearchParams(window.location.hash.slice(1));
-    const accessToken = hashParams.get('access_token');
+    const accessTokenFromHash = hashParams.get('access_token');
     const errorDescription = hashParams.get('error_description');
 
-    if (!accessToken && !errorDescription) return;
+    if (accessTokenFromHash || errorDescription) {
+      // El token no debe quedar en la barra de direcciones ni en el historial.
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
 
-    // El token no debe quedar en la barra de direcciones ni en el historial.
-    window.history.replaceState(null, '', window.location.pathname + window.location.search);
-
-    if (!accessToken) {
+    if (errorDescription && !accessTokenFromHash) {
       setMode('login');
       setMagicLinkError(errorDescription);
+      setSessionLoading(false);
       return;
     }
 
-    try {
-      localStorage.setItem('customer_token', accessToken);
-    } catch {
-      // Almacenamiento no disponible: se continúa sin persistir la sesión.
+    if (accessTokenFromHash) {
+      try {
+        localStorage.setItem('customer_token', accessTokenFromHash);
+      } catch {
+        // Almacenamiento no disponible: se continúa sin persistir la sesión.
+      }
     }
 
-    customerService
-      .getMe(accessToken)
-      .then(response => {
-        if (response?.success && response?.customer) {
-          applyCustomerToForm(response.customer);
-        }
-        setMode('guest');
-      })
-      .catch(() => setMode('guest'));
+    let storedToken: string | null = null;
+    try {
+      storedToken = localStorage.getItem('customer_token');
+    } catch {}
+
+    const token = accessTokenFromHash || storedToken;
+    if (!token) {
+      setSessionLoading(false);
+      return;
+    }
+
+    loadCustomerSession(token, !!accessTokenFromHash).finally(() => setSessionLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleCustomerLogout = () => {
+    try {
+      localStorage.removeItem('customer_token');
+    } catch {}
+    setCustomerEmail(null);
+    setMode('choose');
+    setMagicSentTo(null);
+    setMagicLinkError(null);
+  };
 
   const handleInputChange = (section: keyof typeof formData | 'payment_method', field: string, value: string | boolean) => {
     console.log(`handleInputChange llamado con: section=${section}, field=${field}, value=${value}`);
@@ -169,27 +214,53 @@ export default function CheckoutPage() {
     }
   };
 
-  const validateStep = (step: number): boolean => {
+  const getMissingFields = (step: number): string[] => {
+    const missing: string[] = [];
+
     switch (step) {
-      case 1:
+      case 1: {
         const { first_name, last_name, email, phone } = formData.customer_info;
-        return !!(first_name && last_name && email && phone);
-      case 2:
+
+        // Nombre y apellidos son obligatorios siempre: orders los guarda como
+        // NOT NULL. Con sesión iniciada el email ya viene verificado y el
+        // teléfono es opcional en la base de datos, así que no bloquean.
+        if (!first_name) missing.push('Nombre');
+        if (!last_name) missing.push('Apellidos');
+
+        if (!customerEmail) {
+          if (!email) missing.push('Email');
+          if (!phone) missing.push('Teléfono');
+        }
+
+        return missing;
+      }
+      case 2: {
         const { address, city, postal_code, province } = formData.delivery_address;
-        return !!(address && city && postal_code && province);
+        if (!address) missing.push('Dirección');
+        if (!city) missing.push('Ciudad');
+        if (!postal_code) missing.push('Código postal');
+        if (!province) missing.push('Provincia');
+        return missing;
+      }
       case 3:
-        return !!formData.payment_method;
+        if (!formData.payment_method) missing.push('Método de pago');
+        return missing;
       default:
-        return false;
+        return missing;
     }
   };
 
+  const validateStep = (step: number): boolean => getMissingFields(step).length === 0;
+
   const nextStep = () => {
-    if (validateStep(currentStep)) {
+    const missing = getMissingFields(currentStep);
+
+    if (missing.length === 0) {
       setCurrentStep(prev => Math.min(prev + 1, 4));
-    } else {
-      alert('Por favor, completa todos los campos requeridos.');
+      return;
     }
+
+    alert(`Para continuar necesitamos: ${missing.join(', ')}.`);
   };
 
   const prevStep = () => {
@@ -327,7 +398,34 @@ export default function CheckoutPage() {
                   <div className="space-y-6">
                     <h2 className="text-xl font-semibold text-gray-900">👤 Información Personal</h2>
 
-                    {mode === 'choose' && (
+                    {sessionLoading && (
+                      <div className="p-3 bg-gray-50 border border-gray-200 text-gray-600 rounded text-sm">
+                        Comprobando tu sesión...
+                      </div>
+                    )}
+
+                    {customerEmail && (
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-start justify-between gap-4">
+                          <p className="text-green-800 text-sm">
+                            ✅ Sesión iniciada como <strong>{customerEmail}</strong>
+                            {getMissingFields(1).length > 0 && (
+                              <span className="block mt-1 text-green-700">
+                                Solo necesitamos que completes: {getMissingFields(1).join(', ')}.
+                              </span>
+                            )}
+                          </p>
+                          <button
+                            onClick={handleCustomerLogout}
+                            className="text-sm text-green-700 hover:text-green-900 underline whitespace-nowrap"
+                          >
+                            No soy yo
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {!sessionLoading && !customerEmail && mode === 'choose' && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="border rounded-lg p-6 bg-white shadow-sm">
                           <h3 className="text-lg font-semibold text-gray-900 mb-2">Continuar como Invitado</h3>
@@ -342,7 +440,7 @@ export default function CheckoutPage() {
                       </div>
                     )}
 
-                    {mode === 'login' && (
+                    {!sessionLoading && !customerEmail && mode === 'login' && (
                       <div className="space-y-4">
                         <h3 className="text-lg font-semibold text-gray-900">Acceso con Enlace Mágico</h3>
                         <div>
@@ -378,7 +476,7 @@ export default function CheckoutPage() {
                       </div>
                     )}
 
-                    {mode === 'guest' && (
+                    {!sessionLoading && mode === 'guest' && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Nombre*</label>
@@ -405,16 +503,22 @@ export default function CheckoutPage() {
                           <input
                             type="email"
                             required
+                            readOnly={!!customerEmail}
                             value={formData.customer_info.email}
                             onChange={(e) => handleInputChange('customer_info', 'email', e.target.value)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary read-only:bg-gray-100 read-only:text-gray-600"
                           />
+                          {customerEmail && (
+                            <p className="mt-1 text-xs text-gray-500">Email verificado de tu sesión.</p>
+                          )}
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Teléfono*</label>
+                          <label className="block text-sm font-medium text-gray-700">
+                            Teléfono{customerEmail ? ' (opcional)' : '*'}
+                          </label>
                           <input
                             type="tel"
-                            required
+                            required={!customerEmail}
                             value={formData.customer_info.phone}
                             onChange={(e) => handleInputChange('customer_info', 'phone', e.target.value)}
                             className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
