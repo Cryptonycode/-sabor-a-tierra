@@ -25,6 +25,11 @@ export default function CheckoutPage() {
   const [magicLinkError, setMagicLinkError] = useState<string | null>(null);
   const [customerEmail, setCustomerEmail] = useState<string | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [recoveredProfile, setRecoveredProfile] = useState<{
+    firstName: string;
+    filledPersonal: boolean;
+    filledAddress: boolean;
+  } | null>(null);
   const orderCompletedRef = useRef(false);
   const [formData, setFormData] = useState<Omit<CheckoutPayload, 'items' | 'subtotal' | 'shipping_cost' | 'tax_amount' | 'total_amount'>>({
     customer_info: {
@@ -123,9 +128,26 @@ export default function CheckoutPage() {
         return;
       }
 
+      const customer = response.customer;
       setCustomerEmail(response.email);
-      applySessionToForm(response.email, response.customer);
+      applySessionToForm(response.email, customer);
       setMode('guest');
+
+      // Solo se avisa de "datos recuperados" si el perfil traía algo aparte
+      // del email; si está vacío, prometerlo sería confuso.
+      const filledPersonal = !!(customer?.first_name || customer?.last_name || customer?.phone);
+      const filledAddress = !!(
+        customer?.default_shipping_address ||
+        customer?.default_shipping_city ||
+        customer?.default_shipping_postal_code ||
+        customer?.default_shipping_province
+      );
+
+      setRecoveredProfile(
+        filledPersonal || filledAddress
+          ? { firstName: customer?.first_name || '', filledPersonal, filledAddress }
+          : null
+      );
 
       // Solo se salta al paso 2 tras usar el enlace, y únicamente si ya no
       // falta nada del paso 1. En una recarga normal no se mueve al usuario.
@@ -185,6 +207,7 @@ export default function CheckoutPage() {
       localStorage.removeItem('customer_token');
     } catch {}
     setCustomerEmail(null);
+    setRecoveredProfile(null);
     setMode('choose');
     setMagicSentTo(null);
     setMagicLinkError(null);
@@ -407,14 +430,29 @@ export default function CheckoutPage() {
                     {customerEmail && (
                       <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                         <div className="flex items-start justify-between gap-4">
-                          <p className="text-green-800 text-sm">
-                            ✅ Sesión iniciada como <strong>{customerEmail}</strong>
-                            {getMissingFields(1).length > 0 && (
-                              <span className="block mt-1 text-green-700">
-                                Solo necesitamos que completes: {getMissingFields(1).join(', ')}.
-                              </span>
+                          <div className="text-sm text-green-800">
+                            {recoveredProfile ? (
+                              <>
+                                <p className="font-semibold">
+                                  👋 ¡Hola de nuevo
+                                  {recoveredProfile.firstName ? `, ${recoveredProfile.firstName}` : ''}!
+                                  {' '}Hemos recuperado tus datos.
+                                </p>
+                                <p className="mt-1 text-green-700">
+                                  Sesión iniciada como {customerEmail}. Revísalos y edita lo que haga falta.
+                                </p>
+                              </>
+                            ) : (
+                              <p>
+                                ✅ Sesión iniciada como <strong>{customerEmail}</strong>
+                              </p>
                             )}
-                          </p>
+                            {getMissingFields(1).length > 0 && (
+                              <p className="mt-1 text-green-700">
+                                Solo necesitamos que completes: {getMissingFields(1).join(', ')}.
+                              </p>
+                            )}
+                          </div>
                           <button
                             onClick={handleCustomerLogout}
                             className="text-sm text-green-700 hover:text-green-900 underline whitespace-nowrap"
@@ -534,6 +572,13 @@ export default function CheckoutPage() {
                 {currentStep === 2 && (
                   <div className="space-y-6">
                     <h2 className="text-xl font-semibold text-gray-900">📍 Dirección de Entrega</h2>
+
+                    {recoveredProfile?.filledAddress && (
+                      <div className="p-3 bg-green-50 border border-green-200 text-green-800 rounded text-sm">
+                        📍 Hemos recuperado la dirección guardada en tu cuenta. Revísala y edítala si hace falta.
+                      </div>
+                    )}
+
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700">Dirección*</label>
