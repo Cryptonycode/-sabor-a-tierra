@@ -38,6 +38,17 @@ export const customerService = {
     });
   },
 
+  async sendMagicLink(email: string, redirectTo?: string) {
+    const response = await fetch('/api/auth/magic-link', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email, redirectTo })
+    });
+    return response.json();
+  },
+
   async getMe(token?: string) {
     const response = await fetch('/api/customers/me', {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,

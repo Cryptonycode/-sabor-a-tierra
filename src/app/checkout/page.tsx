@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { discountService } from '@/services/discountService';
 import { orderService } from '@/services/orderService';
+import { customerService } from '@/services/customerService';
 import { calculateShippingCostForLines } from '@/lib/shipping';
 import { CheckoutPayload } from '@/types/order';
 
@@ -20,6 +21,8 @@ export default function CheckoutPage() {
   const [mode, setMode] = useState<'choose' | 'guest' | 'login'>('choose');
   const [loginEmail, setLoginEmail] = useState('');
   const [magicSentTo, setMagicSentTo] = useState<string | null>(null);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
+  const [magicLinkError, setMagicLinkError] = useState<string | null>(null);
   const orderCompletedRef = useRef(false);
   const [formData, setFormData] = useState<Omit<CheckoutPayload, 'items' | 'subtotal' | 'shipping_cost' | 'tax_amount' | 'total_amount'>>({
     customer_info: {
@@ -57,6 +60,90 @@ export default function CheckoutPage() {
       }
     } catch {}
   }, [isLoading, cart.items.length, router]);
+
+  const handleSendMagicLink = async () => {
+    const email = loginEmail.trim();
+    if (!email || magicLinkLoading) return;
+
+    setMagicLinkLoading(true);
+    setMagicLinkError(null);
+    setMagicSentTo(null);
+
+    try {
+      const response = await customerService.sendMagicLink(
+        email,
+        `${window.location.origin}/checkout`
+      );
+
+      if (!response?.success) {
+        setMagicLinkError(response?.message || 'No se pudo enviar el enlace de acceso.');
+        return;
+      }
+
+      setMagicSentTo(email);
+    } catch {
+      setMagicLinkError('No se pudo conectar con el servidor. Inténtalo de nuevo.');
+    } finally {
+      setMagicLinkLoading(false);
+    }
+  };
+
+  const applyCustomerToForm = (customer: Record<string, any>) => {
+    setFormData(prev => ({
+      ...prev,
+      customer_info: {
+        first_name: customer.first_name || prev.customer_info.first_name,
+        last_name: customer.last_name || prev.customer_info.last_name,
+        email: customer.email || prev.customer_info.email,
+        phone: customer.phone || prev.customer_info.phone
+      },
+      delivery_address: {
+        ...prev.delivery_address,
+        address: customer.default_shipping_address || prev.delivery_address.address,
+        city: customer.default_shipping_city || prev.delivery_address.city,
+        postal_code: customer.default_shipping_postal_code || prev.delivery_address.postal_code,
+        province: customer.default_shipping_province || prev.delivery_address.province
+      }
+    }));
+  };
+
+  // Retorno del enlace mágico: Supabase devuelve la sesión en el hash de la
+  // URL. Se guarda como `customer_token`, que es la clave que leen
+  // customerService y las rutas /api/customers/*.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.location.hash) return;
+
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    const accessToken = hashParams.get('access_token');
+    const errorDescription = hashParams.get('error_description');
+
+    if (!accessToken && !errorDescription) return;
+
+    // El token no debe quedar en la barra de direcciones ni en el historial.
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+
+    if (!accessToken) {
+      setMode('login');
+      setMagicLinkError(errorDescription);
+      return;
+    }
+
+    try {
+      localStorage.setItem('customer_token', accessToken);
+    } catch {
+      // Almacenamiento no disponible: se continúa sin persistir la sesión.
+    }
+
+    customerService
+      .getMe(accessToken)
+      .then(response => {
+        if (response?.success && response?.customer) {
+          applyCustomerToForm(response.customer);
+        }
+        setMode('guest');
+      })
+      .catch(() => setMode('guest'));
+  }, []);
 
   const handleInputChange = (section: keyof typeof formData | 'payment_method', field: string, value: string | boolean) => {
     console.log(`handleInputChange llamado con: section=${section}, field=${field}, value=${value}`);
@@ -270,19 +357,22 @@ export default function CheckoutPage() {
                         </div>
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={async () => {
-                              if (!loginEmail) return;
-                              setMagicSentTo(loginEmail);
-                            }}
-                            className="bg-accent text-white font-semibold py-2 px-4 rounded hover:bg-accent/90"
+                            onClick={handleSendMagicLink}
+                            disabled={magicLinkLoading || !loginEmail.trim()}
+                            className="bg-accent text-white font-semibold py-2 px-4 rounded hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                           >
-                            Enviar enlace de acceso
+                            {magicLinkLoading ? 'Enviando...' : 'Enviar enlace de acceso'}
                           </button>
                           <button onClick={() => setMode('guest')} className="text-sm text-gray-600 hover:text-gray-900">Continuar como invitado</button>
                         </div>
                         {magicSentTo && (
                           <div className="p-3 bg-green-50 border border-green-200 text-green-800 rounded">
                             ✅ ¡Enviado! Revisa tu email ({magicSentTo}) y haz clic en el enlace para iniciar sesión y autocompletar tus datos.
+                          </div>
+                        )}
+                        {magicLinkError && (
+                          <div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded">
+                            ❌ {magicLinkError}
                           </div>
                         )}
                       </div>
