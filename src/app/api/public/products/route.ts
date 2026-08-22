@@ -1,25 +1,21 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
 
 export async function GET(request: Request) {
   try {
-    // 1. Obtenemos las variables de entorno de Supabase
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error("Faltan las variables de entorno de Supabase (.env.local)");
-    }
-
-    // 2. Inicializamos el cliente de Supabase
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // 3. Leemos los parámetros de la URL (por si en el futuro filtramos desde el servidor)
+    // 1. Leemos los parámetros de la URL (por si en el futuro filtramos desde el servidor)
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
 
-    // 4. Hacemos la consulta directa a la tabla 'products'
-    let query = supabase.from('products').select('*');
+    // 2. Las variantes son obligatorias para el listado: la tarjeta añade al
+    //    carrito la variante más barata, nunca el producto base.
+    //    Se usa la clave de servicio porque las políticas RLS de
+    //    product_variants no permiten leer con la clave anónima, y el join
+    //    devolvería arrays vacíos sin dar ningún error.
+    let query = supabaseAdmin
+      .from('products')
+      .select('*, variants:product_variants(*)')
+      .eq('is_available', true);
 
     if (category && category !== 'all') {
       query = query.eq('category', category);
@@ -32,7 +28,7 @@ export async function GET(request: Request) {
       throw new Error(error.message);
     }
 
-    // 5. Devolvemos los productos limpios al frontend
+    // 3. Devolvemos los productos limpios al frontend
     return NextResponse.json(products || []);
     
   } catch (error) {

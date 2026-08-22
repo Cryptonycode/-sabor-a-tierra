@@ -1,4 +1,5 @@
 import { CheckoutPayload, Order } from '@/types/order';
+import { ProductVariant } from '@/lib/variants';
 
 // API Client interno (Route Handlers de Next.js)
 const API_BASE_URL = '/api';
@@ -96,6 +97,7 @@ export interface ApiProduct {
   featured: boolean;
   created_at: string;
   updated_at: string;
+  variants?: ProductVariant[];
 }
 
 export interface ApiFarmer {

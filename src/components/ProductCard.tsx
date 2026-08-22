@@ -1,9 +1,11 @@
 'use client';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { Product } from '@/types/cart';
+import { ProductVariant, pickCheapestVariant } from '@/lib/variants';
 
 interface ProductCardProps {
   id: number | string;
@@ -13,30 +15,48 @@ interface ProductCardProps {
   main_image_url?: string; // Acepta también main_image_url de la API
   unit: 'kg' | 'caja' | string;
   category?: string;
+  variants?: ProductVariant[];
 }
 
-export default function ProductCard({ id, name, price, imageUrl, main_image_url, unit, category }: ProductCardProps) {
+export default function ProductCard({ id, name, price, imageUrl, main_image_url, unit, category, variants }: ProductCardProps) {
   const { addToCart, openCart } = useCart();
+  const router = useRouter();
   const [isAdding, setIsAdding] = useState(false);
 
   // Usar main_image_url si existe, sino usar imageUrl
   const imageSrc = main_image_url || imageUrl || '';
 
- 
+  // El precio del producto es solo orientativo por unidad: lo que se vende es
+  // la variante, así que la tarjeta muestra y añade la más barata.
+  const cheapestVariant = pickCheapestVariant(variants);
+  const basePrice = Number(price) || 0;
+  const fromPrice = cheapestVariant ? Number(cheapestVariant.price) : basePrice;
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault(); // Evitar navegación al hacer click en el botón
     e.stopPropagation();
-    
+
+    // Sin variante vendible no hay nada que comprar: el producto base nunca se
+    // añade al carrito, se lleva al cliente a la ficha para que lo vea.
+    if (!cheapestVariant) {
+      router.push(`/productos/${id}`);
+      return;
+    }
+
     setIsAdding(true);
-    
+
+    // Mismo formato que usa la ficha de producto: el id compuesto permite que
+    // el carrito distinga variantes y que el backend resuelva el precio real.
     const product: Product = {
-      id: String(id),
-      name,
-      price,
+      id: `${String(id)}-${String(cheapestVariant.id)}`,
+      productId: String(id),
+      variantId: String(cheapestVariant.id),
+      name: `${name} - ${cheapestVariant.name}`,
+      price: fromPrice,
       imageUrl: imageSrc,
       unit,
       category,
+      weight: Number(cheapestVariant.weight) || 0,
     };
 
     addToCart(product);
@@ -47,9 +67,6 @@ export default function ProductCard({ id, name, price, imageUrl, main_image_url,
     
     // Abrir el carrito brevemente para mostrar que se añadió
     openCart();
-    setTimeout(() => {
-      // No cerrar automáticamente, dejar que el usuario decida
-    }, 1000);
   };
 
   return (
@@ -106,14 +123,26 @@ export default function ProductCard({ id, name, price, imageUrl, main_image_url,
           <h3 className="text-lg font-semibold text-gray-800 mb-2 group-hover:text-primary transition-colors">
             {name}
           </h3>
-          <div className="flex justify-between items-center">
-            <span className="text-accent font-bold">
-              Desde {price.toFixed(2)}€/{unit}
-            </span>
+          <div className="flex justify-between items-center gap-2">
+            <div className="flex flex-col min-w-0">
+              {cheapestVariant ? (
+                <>
+                  <span className="text-accent font-bold">Desde {fromPrice.toFixed(2)}€</span>
+                  <span className="text-xs text-gray-500 truncate">
+                    {cheapestVariant.name} · {basePrice.toFixed(2)}€/{unit}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-accent font-bold">{basePrice.toFixed(2)}€/{unit}</span>
+                  <span className="text-xs text-gray-500">Ver formatos disponibles</span>
+                </>
+              )}
+            </div>
             <button 
               onClick={handleAddToCart}
               disabled={isAdding}
-              className={`btn-primary text-sm transition-all duration-200 relative z-10 ${
+              className={`btn-primary text-sm whitespace-nowrap transition-all duration-200 relative z-10 ${
                 isAdding 
                   ? 'bg-green-600 hover:bg-green-600' 
                   : 'hover:scale-105'
@@ -126,8 +155,10 @@ export default function ProductCard({ id, name, price, imageUrl, main_image_url,
                   </svg>
                   <span>Añadiendo...</span>
                 </span>
-              ) : (
+              ) : cheapestVariant ? (
                 '+ Añadir'
+              ) : (
+                'Ver opciones'
               )}
             </button>
           </div>
