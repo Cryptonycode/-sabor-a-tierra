@@ -58,20 +58,13 @@ export const discountService = {
     return response;
   },
 
-  async registerCustomer(payload: {
-    email: string;
-    first_name?: string;
-    last_name?: string;
-    phone?: string;
-    password?: string;
-    marketing_emails?: boolean;
-  }) {
-    const response = await fetch('/api/auth/register', {
+  async generateWelcomeCode(email: string): Promise<{ success: boolean; code?: string; message?: string }> {
+    const response = await fetch('/api/public/discounts/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ email })
     });
     return response.json();
   }

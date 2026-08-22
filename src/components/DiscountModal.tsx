@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { discountService } from '@/services/discountService';
-import { useIsEligibleForFirstPurchaseOffer } from '@/hooks/useEligibilityCheck';
 
 interface DiscountModalProps {
   isOpen: boolean;
@@ -15,6 +14,7 @@ export default function DiscountModal({ isOpen, onClose, onSubmitSuccess }: Disc
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -28,23 +28,25 @@ export default function DiscountModal({ isOpen, onClose, onSubmitSuccess }: Disc
     }
     setLoading(true);
     try {
-      const res: any = await discountService.registerCustomer({ email, marketing_emails: true });
-      if (res?.success) {
-        setSuccessMsg('¡Registro completado! Cupón de bienvenida generado.');
-        
-        // Marcar en localStorage que el usuario se registró y reclamó el descuento
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('userRegistered', 'true');
-          localStorage.setItem('discountClaimed', 'true');
-        }
-        
-        // Esperar un momento para que el usuario vea el mensaje
-        setTimeout(() => {
-          onSubmitSuccess();
-        }, 1500);
-      } else {
+      const res = await discountService.generateWelcomeCode(email);
+
+      if (!res?.success) {
         setError(res?.message || 'No se pudo generar el código.');
+        return;
       }
+
+      setGeneratedCode(res.code ?? null);
+      setSuccessMsg('¡Listo! Revisa tu correo, te hemos enviado tu código de descuento.');
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('userRegistered', 'true');
+        localStorage.setItem('discountClaimed', 'true');
+      }
+
+      // Se deja tiempo para leer el mensaje y copiar el código antes de cerrar.
+      setTimeout(() => {
+        onSubmitSuccess();
+      }, 4000);
     } catch (e) {
       setError('Error de conexión. Inténtalo de nuevo.');
     } finally {
@@ -71,19 +73,35 @@ export default function DiscountModal({ isOpen, onClose, onSubmitSuccess }: Disc
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mt-1 mb-3 w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+          disabled={loading || !!generatedCode}
+          className="mt-1 mb-3 w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary disabled:bg-gray-100"
           placeholder="tu@email.com"
         />
-        {error && <div className="mb-3 text-sm text-red-600">{error}</div>}
-        {successMsg && <div className="mb-3 text-sm text-green-600">{successMsg}</div>}
+        {error && (
+          <div className="mb-3 p-3 bg-red-50 border border-red-200 text-sm text-red-700 rounded">
+            {error}
+          </div>
+        )}
+        {successMsg && (
+          <div className="mb-3 p-3 bg-green-50 border border-green-200 text-sm text-green-800 rounded">
+            <p>{successMsg}</p>
+            {generatedCode && (
+              <p className="mt-2 text-center font-mono font-bold text-base tracking-wide text-primary">
+                {generatedCode}
+              </p>
+            )}
+          </div>
+        )}
 
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="w-full bg-primary text-white font-semibold py-2 px-4 rounded hover:bg-primary/90 disabled:opacity-50"
-        >
-          {loading ? 'Enviando...' : 'Obtener Descuento'}
-        </button>
+        {!generatedCode && (
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="w-full bg-primary text-white font-semibold py-2 px-4 rounded hover:bg-primary/90 disabled:opacity-50"
+          >
+            {loading ? 'Enviando...' : 'Obtener Descuento'}
+          </button>
+        )}
       </div>
     </div>
   );

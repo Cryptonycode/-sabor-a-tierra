@@ -24,6 +24,46 @@ export const generateWelcomeCode = async (): Promise<string> => {
   return `BIENVENIDA10-${Date.now().toString().slice(-6)}`;
 };
 
+// Cualquier código asociado al email, activo o no: el flujo público solo
+// permite un cupón de bienvenida por dirección.
+export const findDiscountByCustomerEmail = async (email: string) => {
+  const { data, error } = await supabaseAdmin
+    .from('discount_codes')
+    .select('id, code, is_active, times_used, max_uses')
+    .eq('customer_email', email.trim().toLowerCase())
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Error al comprobar cupones existentes: ${error.message}`);
+  }
+
+  return data;
+};
+
+export const createWelcomeDiscountForEmail = async (email: string) => {
+  const code = await generateWelcomeCode();
+  const { data, error } = await supabaseAdmin
+    .from('discount_codes')
+    .insert([
+      {
+        code,
+        customer_email: email.trim().toLowerCase(),
+        discount_percentage: 10,
+        max_uses: 1,
+        times_used: 0,
+        is_active: true
+      }
+    ])
+    .select('id, code')
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Error al crear cupón de bienvenida: ${error?.message || 'desconocido'}`);
+  }
+
+  return data;
+};
+
 export const createWelcomeDiscountIfMissing = async (email: string): Promise<string> => {
   const normalizedEmail = email.trim().toLowerCase();
 
