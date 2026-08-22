@@ -4,6 +4,7 @@ export interface ProductVariantInput {
   id?: string;
   name: string;
   price: number;
+  weight?: number | string | null;
 }
 
 export interface ProductInput {
@@ -184,6 +185,7 @@ export class ProductService {
       product_id: id,
       name: String(v.name || ''),
       price: toNumber(v.price),
+      weight: toNumber(v.weight),
     }));
 
     const productFields = {

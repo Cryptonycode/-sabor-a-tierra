@@ -4,7 +4,14 @@ export interface VariantInput {
   product_id?: string;
   name: string;
   price: number;
+  weight?: number | string | null;
 }
+
+const toNumber = (val: unknown): number => {
+  if (val === null || val === undefined || val === '') return 0;
+  const n = Number(val);
+  return Number.isFinite(n) ? n : 0;
+};
 
 export class VariantService {
   static async getVariantsByProductId(productId: string) {
@@ -22,11 +29,12 @@ export class VariantService {
   }
 
   static async createVariant(variantData: VariantInput) {
-    const { product_id, name, price } = variantData;
+    const { product_id, name, price, weight } = variantData;
     const insertData = {
       product_id,
       name,
       price,
+      weight: toNumber(weight),
     };
 
     const { data, error } = await supabaseAdmin
@@ -43,10 +51,11 @@ export class VariantService {
   }
 
   static async updateVariant(id: string, variantData: VariantInput) {
-    const { name, price } = variantData;
+    const { name, price, weight } = variantData;
     const updateData = {
       name,
       price,
+      weight: toNumber(weight),
     };
 
     const { data, error } = await supabaseAdmin

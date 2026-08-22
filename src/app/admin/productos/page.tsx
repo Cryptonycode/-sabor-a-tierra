@@ -8,6 +8,8 @@ interface ProductVariant {
   id?: string;
   name: string;
   price: NumericValue;
+  // Peso en kg de la variante: es la base del cálculo de gastos de envío.
+  weight: NumericValue;
 }
 
 interface Product {
@@ -79,6 +81,7 @@ export default function ProductsManagementPage() {
   const [variantFormData, setVariantFormData] = useState<ProductVariant>({
     name: '',
     price: '',
+    weight: '',
   });
 
   const categories = [
@@ -174,6 +177,7 @@ export default function ProductsManagementPage() {
         id: v.id,
         name: String(v.name || ''),
         price: toNumber(v.price),
+        weight: toNumber(v.weight),
       });
 
       let variantsPayload = [...variants].map(normalizeVariant);
@@ -283,6 +287,7 @@ export default function ProductsManagementPage() {
     setVariantFormData({
       name: '',
       price: '',
+      weight: '',
     });
   };
 
@@ -292,13 +297,18 @@ export default function ProductsManagementPage() {
     setVariantFormData({
       name: '',
       price: '',
+      weight: '',
     });
     setShowVariantForm(true);
   };
 
   const handleEditVariant = (variant: ProductVariant) => {
     setEditingVariant(variant);
-    setVariantFormData(variant);
+    setVariantFormData({
+      ...variant,
+      // Las variantes antiguas llegan con weight nulo desde Supabase.
+      weight: variant.weight ?? '',
+    });
     setShowVariantForm(true);
   };
 
@@ -318,6 +328,7 @@ export default function ProductsManagementPage() {
       const variantPayload = {
         name: variantFormData.name,
         price: toNumber(variantFormData.price),
+        weight: toNumber(variantFormData.weight),
       };
 
       if (editingVariant && editingVariant.id) {
@@ -343,6 +354,7 @@ export default function ProductsManagementPage() {
       setVariantFormData({
         name: '',
         price: '',
+        weight: '',
       });
     } catch (error) {
       console.error('Error al guardar variante:', error);
@@ -655,6 +667,10 @@ export default function ProductsManagementPage() {
                                 <p className="font-medium text-gray-800">{variant.name}</p>
                                 <p className="text-gray-600">
                                   €{Number(variant.price || 0).toFixed(2)}
+                                  {' · '}
+                                  {Number(variant.weight) > 0
+                                    ? `${Number(variant.weight)} kg`
+                                    : 'Sin peso'}
                                 </p>
                               </div>
                               <div className="flex space-x-1">
@@ -696,7 +712,7 @@ export default function ProductsManagementPage() {
                   <h4 className="text-sm font-semibold text-gray-700 mb-3">
                     {editingVariant ? 'Editar Variante' : 'Nueva Variante'}
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Nombre</label>
                       <input
@@ -716,6 +732,19 @@ export default function ProductsManagementPage() {
                         onChange={(e) => setVariantFormData({...variantFormData, price: e.target.value === '' ? '' : Number(e.target.value)})}
                         className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Peso (kg)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={variantFormData.weight}
+                        onChange={(e) => setVariantFormData({...variantFormData, weight: e.target.value === '' ? '' : Number(e.target.value)})}
+                        className="block w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-primary focus:border-primary"
+                        placeholder="ej: 5"
+                      />
+                      <p className="mt-1 text-[10px] text-gray-500">Se usa para calcular los gastos de envío.</p>
                     </div>
                   </div>
                   <div className="flex justify-end space-x-2 mt-3">
