@@ -95,10 +95,9 @@ export default function CheckoutPage() {
     setMagicSentTo(null);
 
     try {
-      const response = await customerService.sendMagicLink(
-        email,
-        `${window.location.origin}/checkout`
-      );
+      // Se envía solo la ruta: el servidor la resuelve contra el dominio público
+      // para que Supabase reciba una URL que esté en su Allow List.
+      const response = await customerService.sendMagicLink(email, '/checkout');
 
       if (!response?.success) {
         setMagicLinkError(response?.message || 'No se pudo enviar el enlace de acceso.');

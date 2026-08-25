@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseAuthClient } from '@/lib/server/supabaseAuthClient';
 
 const DEFAULT_REDIRECT_PATH = '/checkout';
+const DEFAULT_SITE_URL = 'https://saboratierra.es';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Supabase responde en inglés y la UI es en español.
@@ -23,15 +24,44 @@ const translateAuthError = (message: string) => {
   return message;
 };
 
-// Solo se acepta un destino del mismo origen que la petición, para que este
-// endpoint no pueda usarse para enviar enlaces de acceso hacia otro dominio.
+// El enlace debe apuntar a un origen incluido en la Allow List de Supabase. Detrás
+// del proxy de producción la URL de la petición puede ser un host interno, y en ese
+// caso Supabase descarta el destino y devuelve al usuario a la Home. Por eso manda
+// el dominio público y solo se respeta el origen de la petición en desarrollo local.
+const resolveSiteOrigin = (request: Request) => {
+  const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+
+  if (configuredSiteUrl) {
+    try {
+      return new URL(configuredSiteUrl).origin;
+    } catch {
+      // Valor mal formado: se ignora y se sigue con la detección normal.
+    }
+  }
+
+  try {
+    const requestOrigin = request.headers.get('origin') || new URL(request.url).origin;
+    const { hostname } = new URL(requestOrigin);
+
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return requestOrigin;
+    }
+  } catch {
+    // Origen ilegible: se usa el dominio de producción.
+  }
+
+  return DEFAULT_SITE_URL;
+};
+
+// Solo se acepta un destino del mismo origen que el sitio, para que este endpoint
+// no pueda usarse para enviar enlaces de acceso hacia otro dominio.
 const resolveEmailRedirectTo = (request: Request, requestedRedirect: unknown) => {
-  const origin = request.headers.get('origin') || new URL(request.url).origin;
+  const siteOrigin = resolveSiteOrigin(request);
 
   if (typeof requestedRedirect === 'string' && requestedRedirect.trim()) {
     try {
-      const candidate = new URL(requestedRedirect, origin);
-      if (candidate.origin === origin) {
+      const candidate = new URL(requestedRedirect, siteOrigin);
+      if (candidate.origin === siteOrigin) {
         return candidate.toString();
       }
     } catch {
@@ -39,7 +69,7 @@ const resolveEmailRedirectTo = (request: Request, requestedRedirect: unknown) =>
     }
   }
 
-  return new URL(DEFAULT_REDIRECT_PATH, origin).toString();
+  return new URL(DEFAULT_REDIRECT_PATH, siteOrigin).toString();
 };
 
 export async function POST(request: Request) {
