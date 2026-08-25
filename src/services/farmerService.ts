@@ -1,4 +1,14 @@
 import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
+import { HttpError } from '@/lib/server/httpError';
+
+const FARMER_STATUSES = ['pending', 'approved', 'rejected', 'suspended'] as const;
+type FarmerStatusValue = (typeof FARMER_STATUSES)[number];
+
+/** Campos gestionados por el sistema: nunca se aceptan tal cual desde el cliente. */
+const PROTECTED_FIELDS = ['id', 'created_at', 'updated_at', 'approved_by', 'approved_at', 'verified'];
+
+const isValidStatus = (value: unknown): value is FarmerStatusValue =>
+  typeof value === 'string' && (FARMER_STATUSES as readonly string[]).includes(value);
 
 export class FarmerService {
   static async getPublicFarmers() {
@@ -75,16 +85,50 @@ export class FarmerService {
     return data;
   }
 
-  static async updateFarmer(id: string, payload: Record<string, unknown>) {
+  static async updateFarmer(id: string, payload: Record<string, unknown>, adminId?: string) {
+    if (!id) {
+      throw new HttpError(400, 'Identificador de agricultor no válido');
+    }
+
+    const sanitized = Object.fromEntries(
+      Object.entries(payload || {}).filter(([key]) => !PROTECTED_FIELDS.includes(key))
+    );
+
+    if (Object.keys(sanitized).length === 0) {
+      throw new HttpError(400, 'No se han recibido cambios que aplicar');
+    }
+
+    const nowIso = new Date().toISOString();
+    const updates: Record<string, unknown> = { ...sanitized, updated_at: nowIso };
+
+    if ('status' in sanitized) {
+      if (!isValidStatus(sanitized.status)) {
+        throw new HttpError(400, `Estado no válido. Valores permitidos: ${FARMER_STATUSES.join(', ')}`);
+      }
+
+      // Aceptar (o reactivar) deja constancia de quién y cuándo; rechazar retira la verificación.
+      if (sanitized.status === 'approved') {
+        updates.verified = true;
+        updates.approved_at = nowIso;
+        if (adminId) updates.approved_by = adminId;
+      } else {
+        updates.verified = false;
+      }
+    }
+
     const { data, error } = await supabaseAdmin
       .from('farmers')
-      .update({ ...payload, updated_at: new Date().toISOString() })
+      .update(updates)
       .eq('id', id)
       .select('*')
-      .single();
+      .maybeSingle();
 
     if (error) {
       throw new Error(`Error al actualizar agricultor: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new HttpError(404, 'Agricultor no encontrado');
     }
 
     return data;

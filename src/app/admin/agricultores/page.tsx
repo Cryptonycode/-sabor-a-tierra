@@ -1,404 +1,295 @@
 'use client';
-import React, { useState, useEffect } from 'react';
 
-interface FarmerApplication {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  business_name?: string;
-  production_type: 'organic' | 'conventional' | 'integrated';
-  main_products: string;
-  certifications?: string;
-  address: string;
-  postal_code: string;
-  city: string;
-  province: string;
-  farming_experience: number;
-  hectares?: number;
-  description: string;
-  website?: string;
-  social_media?: string;
-  status: 'pending' | 'approved' | 'rejected';
-  rejection_reason?: string;
-  notes?: string;
-  approved_by?: string;
-  approved_at?: string;
-  created_at: string;
-  updated_at: string;
-}
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import FarmerDetailsModal from '@/components/FarmerDetailsModal';
+import {
+  FARMER_STATUS_BADGE_CLASSES,
+  FARMER_STATUS_LABELS,
+  formatFarmerDate,
+  getProductionTypeLabel,
+  matchesFarmerSearch
+} from '@/lib/farmerRecords';
+import { adminFarmerService } from '@/services/adminFarmerService';
+import type { FarmerRecord, FarmerStatus } from '@/types/farmer';
+
+const TABS: { key: FarmerStatus; label: string; hint: string }[] = [
+  { key: 'pending', label: 'Pendientes', hint: 'Solicitudes a la espera de revisión' },
+  { key: 'approved', label: 'Aceptados', hint: 'Agricultores activos en la plataforma' },
+  { key: 'rejected', label: 'Rechazados', hint: 'Descartados o suspendidos, puedes reactivarlos' }
+];
+
+const EMPTY_MESSAGES: Record<FarmerStatus, string> = {
+  pending: 'No hay solicitudes pendientes de revisar.',
+  approved: 'Todavía no hay agricultores aceptados.',
+  rejected: 'No hay agricultores rechazados ni suspendidos.'
+};
+
+type Feedback = { type: 'success' | 'error'; message: string };
 
 export default function FarmerApplicationsPage() {
-  const [applications, setApplications] = useState<FarmerApplication[]>([]);
-  const [approvedFarmers, setApprovedFarmers] = useState<any[]>([]);
+  const [records, setRecords] = useState<FarmerRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedApplication, setSelectedApplication] = useState<FarmerApplication | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<FarmerStatus>('pending');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRecord, setSelectedRecord] = useState<FarmerRecord | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
 
-  useEffect(() => {
-    fetchData();
-  }, [filter]);
-
-  const adminApiRequest = async <T,>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-    const response = await fetch(`/api/admin${endpoint}`, {
-      ...options,
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.headers || {})
-      }
-    });
-
-    if (response.status === 204) {
-      return undefined as T;
-    }
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data?.message || data?.error || 'Error en API admin');
-    }
-
-    return data as T;
-  };
-
-  const fetchData = async () => {
+  const loadRecords = useCallback(async () => {
     try {
-      setLoading(true);
-      if (filter === 'pending') {
-        const endpoint = '/farmer-applications?status=pending';
-        const response = await adminApiRequest<FarmerApplication[]>(endpoint);
-        setApplications(response);
-        setApprovedFarmers([]);
-      } else if (filter === 'approved' || filter === 'rejected') {
-        const farmers = await adminApiRequest<any[]>(`/farmers?status=${filter}`);
-        setApprovedFarmers(farmers);
-        setApplications([]);
-      } else {
-        // 'all' -> por simplicidad cargamos todas las aplicaciones
-        const response = await adminApiRequest<FarmerApplication[]>(`/farmer-applications`);
-        setApplications(response);
-        setApprovedFarmers([]);
-      }
+      setLoadError(null);
+      const data = await adminFarmerService.listRecords();
+      setRecords(data);
     } catch (error) {
-      console.error('Error fetching applications:', error);
+      setLoadError(error instanceof Error ? error.message : 'No se pudieron cargar los agricultores.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleApprove = async (applicationId: string) => {
+  useEffect(() => {
+    loadRecords();
+  }, [loadRecords]);
+
+  const counts = useMemo(
+    () =>
+      records.reduce(
+        (acc, record) => ({ ...acc, [record.status]: acc[record.status] + 1 }),
+        { pending: 0, approved: 0, rejected: 0 } as Record<FarmerStatus, number>
+      ),
+    [records]
+  );
+
+  const visibleRecords = useMemo(
+    () => records.filter((record) => record.status === activeTab && matchesFarmerSearch(record, searchTerm)),
+    [records, activeTab, searchTerm]
+  );
+
+  const changeStatus = async (record: FarmerRecord, nextStatus: FarmerStatus, reason?: string) => {
     try {
-      setActionLoading(applicationId);
-      await adminApiRequest(`/farmer-applications/${applicationId}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          action: 'approve'
-        })
+      setProcessingId(record.id);
+      setModalError(null);
+
+      if (nextStatus === 'approved') {
+        await adminFarmerService.approve(record);
+      } else {
+        await adminFarmerService.reject(record, reason);
+      }
+
+      await loadRecords();
+
+      setSelectedRecord(null);
+      setActiveTab(nextStatus);
+      setFeedback({
+        type: 'success',
+        message:
+          nextStatus === 'approved'
+            ? `${record.fullName} ya forma parte de los agricultores aceptados.`
+            : `${record.fullName} se ha movido a rechazados.`
       });
-      
-      // Cambiar a la pestaña de aprobados y cerrar detalle
-      setSelectedApplication(null);
-      setFilter('approved');
-      
-      // Mostrar mensaje de éxito
-      alert('Solicitud aprobada con éxito. El agricultor ha sido creado.');
     } catch (error) {
-      console.error('Error approving application:', error);
-      alert('Error al aprobar la solicitud. Por favor, inténtalo de nuevo.');
+      const message = error instanceof Error ? error.message : 'No se pudo actualizar el estado.';
+      setModalError(message);
+      setFeedback({ type: 'error', message });
     } finally {
-      setActionLoading(null);
+      setProcessingId(null);
     }
-  };
-
-  const handleReject = async (applicationId: string, reason: string) => {
-    try {
-      setActionLoading(applicationId);
-      await adminApiRequest(`/farmer-applications/${applicationId}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          action: 'reject',
-          admin_notes: reason
-        })
-      });
-      
-      // Actualizar la lista
-      await fetchData();
-      setSelectedApplication(null);
-      
-      alert('Solicitud rechazada con éxito.');
-    } catch (error) {
-      console.error('Error rejecting application:', error);
-      alert('Error al rechazar la solicitud. Por favor, inténtalo de nuevo.');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleRejectFarmer = async (farmerId: string) => {
-    try {
-      if (!confirm('¿Seguro que deseas rechazar a este agricultor?')) return;
-      setActionLoading(farmerId);
-      await adminApiRequest(`/farmers/${farmerId}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          status: 'rejected'
-        })
-      });
-      await fetchData();
-      alert('Agricultor rechazado correctamente.');
-    } catch (error) {
-      console.error('Error rejecting farmer:', error);
-      alert('Error al rechazar el agricultor.');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const badges = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      approved: 'bg-green-100 text-green-800',
-      rejected: 'bg-red-100 text-red-800'
-    };
-    
-    const labels = {
-      pending: 'Pendiente',
-      approved: 'Aprobado',
-      rejected: 'Rechazado'
-    };
-
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badges[status as keyof typeof badges]}`}>
-        {labels[status as keyof typeof labels]}
-      </span>
-    );
-  };
-
-  const getProductionTypeLabel = (type: string) => {
-    const labels = {
-      organic: 'Ecológica',
-      conventional: 'Tradicional',
-      integrated: 'Integrada'
-    };
-    return labels[type as keyof typeof labels] || type;
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Solicitudes de Agricultores</h1>
-          <p className="text-gray-600">Gestiona las solicitudes para unirse a la plataforma</p>
+      <header className="space-y-1">
+        <h1 className="text-3xl font-bold text-gray-900">Agricultores</h1>
+        <p className="text-gray-600">
+          Revisa solicitudes, consulta la ficha completa y gestiona el acceso a la plataforma.
+        </p>
+      </header>
+
+      {feedback && (
+        <div
+          className={`flex items-start justify-between gap-4 rounded-xl border px-4 py-3 text-sm ${
+            feedback.type === 'success'
+              ? 'border-primary/20 bg-primary/5 text-primary'
+              : 'border-rose-200 bg-rose-50 text-rose-700'
+          }`}
+        >
+          <span>{feedback.message}</span>
+          <button onClick={() => setFeedback(null)} aria-label="Cerrar aviso" className="font-bold leading-none">
+            ×
+          </button>
         </div>
-        
-        {/* Filter tabs */}
-        <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-          {[
-            { key: 'pending', label: 'Pendientes' },
-            { key: 'approved', label: 'Aprobados' },
-            { key: 'rejected', label: 'Rechazados' },
-            { key: 'all', label: 'Todos' }
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setFilter(tab.key as any)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                filter === tab.key
-                  ? 'bg-white text-primary shadow'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+      )}
+
+      {loadError && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <span>{loadError}</span>
+          <button
+            onClick={loadRecords}
+            className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <nav className="flex flex-wrap gap-1 rounded-xl bg-stone-100 p-1" aria-label="Filtrar por estado">
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                title={tab.hint}
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                  isActive ? 'bg-primary text-white shadow-sm' : 'text-gray-600 hover:bg-white hover:text-primary'
+                }`}
+              >
+                {tab.label}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-white text-gray-500'
+                  }`}
+                >
+                  {counts[tab.key]}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="relative lg:w-80">
+          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">🔍</span>
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Buscar por nombre, email, negocio o provincia"
+            className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          />
         </div>
       </div>
 
-      {/* Listado condicional: aplicaciones pendientes vs. agricultores aprobados/rechazados */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-stone-50">
               <tr>
-                {filter === 'pending' ? (
-                  <>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agricultor</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Negocio</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Experiencia</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-                  </>
-                ) : (
-                  <>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agricultor</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Negocio</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Provincia</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Creado</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-                  </>
-                )}
+                <th className="px-6 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-gray-500">
+                  Agricultor
+                </th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-gray-500">
+                  Explotación
+                </th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-gray-500">
+                  Ubicación
+                </th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-gray-500">
+                  Estado
+                </th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-gray-500">
+                  Alta
+                </th>
+                <th className="px-6 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-gray-500">
+                  Ficha
+                </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filter === 'pending' && applications.map((application) => (
-                <tr key={application.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{application.first_name} {application.last_name}</div>
-                      <div className="text-sm text-gray-500">{application.email}</div>
-                      <div className="text-sm text-gray-500">{application.city}, {application.province}</div>
+            <tbody className="divide-y divide-gray-100">
+              {visibleRecords.map((record) => (
+                <tr
+                  key={`${record.source}-${record.id}`}
+                  onClick={() => {
+                    setModalError(null);
+                    setSelectedRecord(record);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setModalError(null);
+                      setSelectedRecord(record);
+                    }
+                  }}
+                  tabIndex={0}
+                  className="cursor-pointer transition-colors hover:bg-primary/5 focus:bg-primary/5 focus:outline-none"
+                >
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                        {`${record.firstName?.[0] ?? ''}${record.lastName?.[0] ?? ''}`.toUpperCase() || '?'}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-gray-900">{record.fullName}</div>
+                        <div className="truncate text-sm text-gray-500">{record.email}</div>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{application.business_name || 'Sin nombre comercial'}</div>
-                      <div className="text-sm text-gray-500">{getProductionTypeLabel(application.production_type)}</div>
-                      <div className="text-sm text-gray-500">{application.hectares ? `${application.hectares} ha` : 'N/A'}</div>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-gray-900">
+                      {record.businessName || 'Sin nombre comercial'}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {getProductionTypeLabel(record.productionType)}
+                      {record.hectares ? ` · ${record.hectares} ha` : ''}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{application.farming_experience} años</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(application.status)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(application.created_at).toLocaleDateString('es-ES')}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button onClick={() => setSelectedApplication(application)} className="text-indigo-600 hover:text-indigo-900">Ver Detalles</button>
-                      {application.status === 'pending' && (
-                        <>
-                          <button onClick={() => handleApprove(application.id)} disabled={actionLoading === application.id} className="text-green-600 hover:text-green-900 disabled:opacity-50">{actionLoading === application.id ? 'Procesando...' : 'Aprobar'}</button>
-                          <button onClick={() => { const reason = prompt('Motivo del rechazo:'); if (reason) handleReject(application.id, reason); }} disabled={actionLoading === application.id} className="text-red-600 hover:text-red-900 disabled:opacity-50">Rechazar</button>
-                        </>
-                      )}
-                    </div>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700">
+                    {[record.city, record.province].filter(Boolean).join(', ') || '—'}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${
+                        FARMER_STATUS_BADGE_CLASSES[record.status]
+                      }`}
+                    >
+                      {FARMER_STATUS_LABELS[record.status]}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                    {formatFarmerDate(record.createdAt)}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold text-primary">
+                    Ver detalles →
                   </td>
                 </tr>
               ))}
 
-              {filter !== 'pending' && approvedFarmers.map((farmer) => (
-                <tr key={farmer.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{farmer.first_name} {farmer.last_name}</div>
-                      <div className="text-sm text-gray-500">{farmer.email}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{farmer.business_name || 'Sin nombre comercial'}</div>
-                      <div className="text-sm text-gray-500">{farmer.specialties?.join(', ') || '—'}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{farmer.province}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(farmer.status)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(farmer.created_at).toLocaleDateString('es-ES')}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {farmer.status === 'approved' ? (
-                      <button
-                        onClick={() => handleRejectFarmer(farmer.id)}
-                        disabled={actionLoading === farmer.id}
-                        className="text-red-600 hover:text-red-900 disabled:opacity-50"
-                      >
-                        {actionLoading === farmer.id ? 'Procesando...' : 'Rechazar'}
-                      </button>
-                    ) : null}
+              {visibleRecords.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-16 text-center text-sm text-gray-500">
+                    {searchTerm.trim()
+                      ? `Ningún agricultor coincide con "${searchTerm.trim()}".`
+                      : EMPTY_MESSAGES[activeTab]}
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Application Detail Modal */}
-      {selectedApplication && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-900">
-                Detalles de la Solicitud
-              </h3>
-              <button
-                onClick={() => setSelectedApplication(null)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Personal Info */}
-              <div className="space-y-4">
-                <h4 className="font-semibold text-gray-800">Información Personal</h4>
-                <div className="space-y-2">
-                  <p><strong>Nombre:</strong> {selectedApplication.first_name} {selectedApplication.last_name}</p>
-                  <p><strong>Email:</strong> {selectedApplication.email}</p>
-                  <p><strong>Teléfono:</strong> {selectedApplication.phone}</p>
-                  <p><strong>Dirección:</strong> {selectedApplication.address}</p>
-                  <p><strong>Ciudad:</strong> {selectedApplication.city}, {selectedApplication.province}</p>
-                  <p><strong>Código Postal:</strong> {selectedApplication.postal_code}</p>
-                </div>
-              </div>
-
-              {/* Business Info */}
-              <div className="space-y-4">
-                <h4 className="font-semibold text-gray-800">Información del Negocio</h4>
-                <div className="space-y-2">
-                  <p><strong>Nombre del Negocio:</strong> {selectedApplication.business_name || 'N/A'}</p>
-                  <p><strong>Tipo de Producción:</strong> {getProductionTypeLabel(selectedApplication.production_type)}</p>
-                  <p><strong>Experiencia:</strong> {selectedApplication.farming_experience} años</p>
-                  <p><strong>Hectáreas:</strong> {selectedApplication.hectares || 'N/A'}</p>
-                  <p><strong>Productos Principales:</strong> {selectedApplication.main_products}</p>
-                  <p><strong>Certificaciones:</strong> {selectedApplication.certifications || 'Ninguna'}</p>
-                  {selectedApplication.website && (
-                    <p><strong>Website:</strong> <a href={selectedApplication.website} target="_blank" className="text-blue-600 hover:text-blue-800">{selectedApplication.website}</a></p>
-                  )}
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className="md:col-span-2 space-y-4">
-                <h4 className="font-semibold text-gray-800">Descripción</h4>
-                <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">{selectedApplication.description}</p>
-              </div>
-
-              {/* Actions */}
-              {selectedApplication.status === 'pending' && (
-                <div className="md:col-span-2 flex justify-end space-x-4 pt-4 border-t">
-                  <button
-                    onClick={() => {
-                      const reason = prompt('Motivo del rechazo:');
-                      if (reason) handleReject(selectedApplication.id, reason);
-                    }}
-                    disabled={actionLoading === selectedApplication.id}
-                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-                  >
-                    Rechazar Solicitud
-                  </button>
-                  <button
-                    onClick={() => handleApprove(selectedApplication.id)}
-                    disabled={actionLoading === selectedApplication.id}
-                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-                  >
-                    {actionLoading === selectedApplication.id ? 'Procesando...' : 'Aprobar Solicitud'}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <FarmerDetailsModal
+        record={selectedRecord}
+        isProcessing={processingId === selectedRecord?.id}
+        errorMessage={modalError}
+        onClose={() => {
+          setSelectedRecord(null);
+          setModalError(null);
+        }}
+        onApprove={(record) => changeStatus(record, 'approved')}
+        onReject={(record, reason) => changeStatus(record, 'rejected', reason)}
+      />
     </div>
   );
 }

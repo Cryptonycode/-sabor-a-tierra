@@ -1,4 +1,16 @@
 import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
+import { HttpError } from '@/lib/server/httpError';
+
+/**
+ * `farmer_applications` acepta 'conventional', pero la restricción CHECK de
+ * `farmers` solo admite 'traditional' para ese mismo concepto.
+ */
+const FARMER_PRODUCTION_TYPES = ['traditional', 'organic', 'biodynamic', 'integrated', 'artisanal'];
+
+const toFarmerProductionType = (value?: string | null) => {
+  if (value === 'conventional' || !value) return 'traditional';
+  return FARMER_PRODUCTION_TYPES.includes(value) ? value : 'traditional';
+};
 
 const mapApplicationToFarmerPayload = (application: any, adminId: string) => {
   const nowIso = new Date().toISOString();
@@ -30,7 +42,7 @@ const mapApplicationToFarmerPayload = (application: any, adminId: string) => {
     province: application.province,
     specialties: specialtiesArray,
     certifications: certificationsArray,
-    production_type: application.production_type || 'conventional',
+    production_type: toFarmerProductionType(application.production_type),
     years_experience: application.farming_experience || 0,
     hectares: application.hectares || 0,
     customers_served: 0,
@@ -111,17 +123,37 @@ export class FarmerApplicationService {
     return data;
   }
 
+  /**
+   * Aprueba (o reactiva) una solicitud. Si ya existe una ficha con ese email
+   * —caso de una solicitud rechazada que se vuelve a aceptar— se reutiliza en
+   * lugar de insertar una nueva, que además violaría el índice único de email.
+   */
   static async approveApplication(id: string, adminId: string) {
     const application = await this.getApplicationById(id);
     if (!application) {
-      throw new Error('Aplicación no encontrada');
+      throw new HttpError(404, 'Solicitud no encontrada');
     }
 
-    const { data: farmer, error: farmerError } = await supabaseAdmin
+    const farmerPayload = mapApplicationToFarmerPayload(application, adminId);
+
+    const { data: existingFarmer, error: lookupError } = await supabaseAdmin
       .from('farmers')
-      .insert([mapApplicationToFarmerPayload(application, adminId)])
       .select('id')
-      .single();
+      .eq('email', application.email)
+      .maybeSingle();
+
+    if (lookupError) {
+      throw new Error(`Error al comprobar el agricultor existente: ${lookupError.message}`);
+    }
+
+    const { data: farmer, error: farmerError } = existingFarmer
+      ? await supabaseAdmin
+          .from('farmers')
+          .update({ ...farmerPayload, updated_at: new Date().toISOString() })
+          .eq('id', existingFarmer.id)
+          .select('id')
+          .single()
+      : await supabaseAdmin.from('farmers').insert([farmerPayload]).select('id').single();
 
     if (farmerError || !farmer) {
       throw new Error(`Error al crear agricultor: ${farmerError?.message || 'Error desconocido'}`);
@@ -155,10 +187,14 @@ export class FarmerApplicationService {
       })
       .eq('id', id)
       .select('*')
-      .single();
+      .maybeSingle();
 
     if (error) {
       throw new Error(`Error al rechazar aplicación: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new HttpError(404, 'Solicitud no encontrada');
     }
 
     return data;

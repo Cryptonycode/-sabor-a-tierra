@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedAdmin } from '@/lib/server/adminAuth';
+import { errorResponse } from '@/lib/server/httpError';
 import { FarmerApplicationService } from '@/services/farmerApplicationService';
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
@@ -15,13 +16,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     }
     return NextResponse.json(application);
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Error interno del servidor',
-        message: error instanceof Error ? error.message : 'Error desconocido'
-      },
-      { status: 500 }
-    );
+    return errorResponse(error);
   }
 }
 
@@ -32,7 +27,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
 
   try {
-    const payload = await request.json();
+    const payload = await request.json().catch(() => null);
+
     if (payload?.action === 'approve') {
       const result = await FarmerApplicationService.approveApplication(params.id, admin.id);
       return NextResponse.json(result);
@@ -43,15 +39,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       return NextResponse.json(result);
     }
 
-    return NextResponse.json({ error: 'Acción inválida' }, { status: 400 });
+    return NextResponse.json({ error: 'Acción inválida. Usa "approve" o "reject".' }, { status: 400 });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Error interno del servidor',
-        message: error instanceof Error ? error.message : 'Error desconocido'
-      },
-      { status: 500 }
-    );
+    return errorResponse(error);
   }
 }
 
@@ -65,12 +55,6 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     await FarmerApplicationService.deleteApplication(params.id);
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Error interno del servidor',
-        message: error instanceof Error ? error.message : 'Error desconocido'
-      },
-      { status: 500 }
-    );
+    return errorResponse(error);
   }
 }
