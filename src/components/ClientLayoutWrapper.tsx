@@ -19,6 +19,7 @@ const BANNER_BLOCKED_PREFIXES = ['/dashboard', '/admin'];
 
 export default function ClientLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isAdminRoute = pathname?.startsWith('/admin') ?? false;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBannerVisible, setIsBannerVisible] = useState(false);
   const [bannerEnabled, setBannerEnabled] = useState(false);
@@ -134,11 +135,20 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
     setIsModalOpen(true);
   };
 
+  if (isAdminRoute) {
+    return (
+      <AuthProvider>
+        <CartProvider>{children}</CartProvider>
+      </AuthProvider>
+    );
+  }
+
   return (
     <AuthProvider>
       <CartProvider>
         <Header />
-        {children}
+        {/* El Header es fixed: este padding evita que tape el contenido público */}
+        <div className="pt-24">{children}</div>
         <Footer />
         {bannerEnabled && (
           <>

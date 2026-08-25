@@ -181,7 +181,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">{card.title}</p>
-                  <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+                  <p className="text-2xl font-bold text-gray-900">{card.value}*</p>
                 </div>
                 <div className={`${card.color} rounded-full p-3 text-white text-2xl`}>
                   {card.icon}
@@ -206,7 +206,7 @@ export default function AdminDashboard() {
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-medium text-gray-900">{action.title}</h3>
                   <span className={`text-xl font-bold ${action.urgent ? 'text-red-600' : 'text-gray-600'}`}>
-                    {action.count}
+                    {action.count}*
                   </span>
                 </div>
                 <p className="text-sm text-gray-600">{action.description}</p>
@@ -244,6 +244,8 @@ export default function AdminDashboard() {
           <p className="text-sm text-gray-500">No hay actividad reciente.</p>
         )}
       </div>
+
+      <p className="text-xs text-gray-400">* Datos simulados temporalmente.</p>
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import './globals.css';
-import CartSidebar from '@/components/CartSidebar';
 import ClientLayoutWrapper from '@/components/ClientLayoutWrapper';
 
 export const metadata = {
@@ -15,9 +14,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body>
-        <ClientLayoutWrapper>
-          <div className="pt-24">{children}</div>
-        </ClientLayoutWrapper>
+        <ClientLayoutWrapper>{children}</ClientLayoutWrapper>
       </body>
     </html>
   )

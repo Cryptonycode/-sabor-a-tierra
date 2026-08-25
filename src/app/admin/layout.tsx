@@ -73,9 +73,9 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen w-full max-w-full bg-gray-50 flex overflow-x-hidden">
       {/* Sidebar */}
-      <div className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-primary transition-all duration-300 flex flex-col`}>
+      <div className={`${sidebarOpen ? 'w-64' : 'w-16'} flex-shrink-0 overflow-hidden bg-primary transition-all duration-300 flex flex-col`}>
         {/* Header */}
         <div className="p-4 border-b border-primary-dark">
           <div className="flex items-center justify-between">
@@ -108,11 +108,11 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
                 }`}
                 title={sidebarOpen ? '' : item.description}
               >
-                <span className="text-xl">{item.icon}</span>
+                <span className="text-xl flex-shrink-0">{item.icon}</span>
                 {sidebarOpen && (
-                  <div>
-                    <div className="font-medium">{item.name}</div>
-                    <div className="text-sm opacity-75">{item.description}</div>
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{item.name}</div>
+                    <div className="text-sm opacity-75 truncate">{item.description}</div>
                   </div>
                 )}
               </Link>
@@ -148,7 +148,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col">
         {/* Top bar */}
         <header className="bg-white shadow-sm border-b px-6 py-4">
           <div className="flex items-center justify-between">
@@ -158,10 +158,13 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
             
             {/* Alerts indicator */}
             <div className="flex items-center space-x-4">
-              <button className="relative p-2 text-gray-600 hover:text-gray-800">
+              <button
+                className="relative p-2 text-gray-600 hover:text-gray-800"
+                title="Notificaciones (dato simulado temporalmente)"
+              >
                 <span className="text-xl">🔔</span>
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                  3
+                <span className="absolute -top-1 -right-1 min-w-[1.25rem] h-5 px-1 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  3*
                 </span>
               </button>
               
@@ -176,7 +179,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-6">
+        <main className="flex-1 min-w-0 p-6">
           {children}
         </main>
       </div>
