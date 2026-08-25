@@ -9,6 +9,23 @@ import { customerService } from '@/services/customerService';
 import { calculateShippingCostForLines } from '@/lib/shipping';
 import { CheckoutPayload } from '@/types/order';
 
+const FIELD_LABELS: Record<string, string> = {
+  first_name: 'Nombre',
+  last_name: 'Apellidos',
+  email: 'Email',
+  phone: 'Teléfono',
+  address: 'Dirección',
+  city: 'Ciudad',
+  postal_code: 'Código postal',
+  province: 'Provincia',
+  payment_method: 'Método de pago'
+};
+
+const describeFields = (fields: string[]) => fields.map((field) => FIELD_LABELS[field] ?? field).join(', ');
+
+/** Un perfil puede existir en `customers` con cadenas vacías, así que no basta con comprobar null. */
+const cleanValue = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+
 export default function CheckoutPage() {
   const { cart, clearCart, isLoading } = useCart();
   const router = useRouter();
@@ -25,6 +42,7 @@ export default function CheckoutPage() {
   const [magicLinkError, setMagicLinkError] = useState<string | null>(null);
   const [customerEmail, setCustomerEmail] = useState<string | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
   const [recoveredProfile, setRecoveredProfile] = useState<{
     firstName: string;
     filledPersonal: boolean;
@@ -95,21 +113,26 @@ export default function CheckoutPage() {
     }
   };
 
+  /**
+   * Mapea la fila de `customers` (snake_case) al estado del checkout. Cada campo
+   * que la base de datos no tenga se deja vacío para que el input aparezca en
+   * blanco y el usuario pueda completarlo, en lugar de quedar bloqueado.
+   */
   const applySessionToForm = (email: string, customer: Record<string, any> | null) => {
     setFormData(prev => ({
       ...prev,
       customer_info: {
-        first_name: customer?.first_name || prev.customer_info.first_name,
-        last_name: customer?.last_name || prev.customer_info.last_name,
-        email: email || customer?.email || prev.customer_info.email,
-        phone: customer?.phone || prev.customer_info.phone
+        first_name: cleanValue(customer?.first_name) || prev.customer_info.first_name,
+        last_name: cleanValue(customer?.last_name) || prev.customer_info.last_name,
+        email: cleanValue(email) || cleanValue(customer?.email) || prev.customer_info.email,
+        phone: cleanValue(customer?.phone) || prev.customer_info.phone
       },
       delivery_address: {
         ...prev.delivery_address,
-        address: customer?.default_shipping_address || prev.delivery_address.address,
-        city: customer?.default_shipping_city || prev.delivery_address.city,
-        postal_code: customer?.default_shipping_postal_code || prev.delivery_address.postal_code,
-        province: customer?.default_shipping_province || prev.delivery_address.province
+        address: cleanValue(customer?.default_shipping_address) || prev.delivery_address.address,
+        city: cleanValue(customer?.default_shipping_city) || prev.delivery_address.city,
+        postal_code: cleanValue(customer?.default_shipping_postal_code) || prev.delivery_address.postal_code,
+        province: cleanValue(customer?.default_shipping_province) || prev.delivery_address.province
       }
     }));
   };
@@ -135,24 +158,33 @@ export default function CheckoutPage() {
 
       // Solo se avisa de "datos recuperados" si el perfil traía algo aparte
       // del email; si está vacío, prometerlo sería confuso.
-      const filledPersonal = !!(customer?.first_name || customer?.last_name || customer?.phone);
+      const filledPersonal = !!(
+        cleanValue(customer?.first_name) ||
+        cleanValue(customer?.last_name) ||
+        cleanValue(customer?.phone)
+      );
       const filledAddress = !!(
-        customer?.default_shipping_address ||
-        customer?.default_shipping_city ||
-        customer?.default_shipping_postal_code ||
-        customer?.default_shipping_province
+        cleanValue(customer?.default_shipping_address) ||
+        cleanValue(customer?.default_shipping_city) ||
+        cleanValue(customer?.default_shipping_postal_code) ||
+        cleanValue(customer?.default_shipping_province)
       );
 
       setRecoveredProfile(
         filledPersonal || filledAddress
-          ? { firstName: customer?.first_name || '', filledPersonal, filledAddress }
+          ? { firstName: cleanValue(customer?.first_name), filledPersonal, filledAddress }
           : null
       );
 
-      // Solo se salta al paso 2 tras usar el enlace, y únicamente si ya no
-      // falta nada del paso 1. En una recarga normal no se mueve al usuario.
-      const hasName = !!(response.customer?.first_name && response.customer?.last_name);
-      if (cameFromMagicLink && hasName) {
+      // Solo se salta al paso 2 tras usar el enlace, y únicamente si el perfil
+      // trae todo lo que exige el paso 1. En una recarga normal no se mueve al
+      // usuario, y si falta algún dato se queda aquí para completarlo.
+      const profileIsComplete = !!(
+        cleanValue(customer?.first_name) &&
+        cleanValue(customer?.last_name) &&
+        cleanValue(customer?.phone)
+      );
+      if (cameFromMagicLink && profileIsComplete) {
         setCurrentStep(2);
       }
     } catch {
@@ -211,32 +243,40 @@ export default function CheckoutPage() {
     setMode('choose');
     setMagicSentTo(null);
     setMagicLinkError(null);
+    setMissingFields([]);
+
+    // Si no es su cuenta, los datos recuperados tampoco son suyos.
+    setFormData(prev => ({
+      ...prev,
+      customer_info: { first_name: '', last_name: '', email: '', phone: '' },
+      delivery_address: { ...prev.delivery_address, address: '', city: '', postal_code: '', province: '' }
+    }));
   };
 
   const handleInputChange = (section: keyof typeof formData | 'payment_method', field: string, value: string | boolean) => {
-    console.log(`handleInputChange llamado con: section=${section}, field=${field}, value=${value}`);
+    setMissingFields(prev => prev.filter(item => item !== (section === 'payment_method' ? 'payment_method' : field)));
+
     if (section === 'payment_method') {
-      setFormData(prev => {
-        const newState = { ...prev, payment_method: value as CheckoutPayload['payment_method'] };
-        console.log('Nuevo estado (payment_method):', newState);
-        return newState;
-      });
-    } else {
-      setFormData(prev => {
-        const sectionData: Record<string, unknown> = (prev as Record<string, any>)[section] || {};
-        const newState = {
-          ...prev,
-          [section]: {
-            ...sectionData,
-            [field]: value
-          }
-        };
-        console.log(`Nuevo estado (${section}):`, newState);
-        return newState;
-      });
+      setFormData(prev => ({ ...prev, payment_method: value as CheckoutPayload['payment_method'] }));
+      return;
     }
+
+    setFormData(prev => {
+      const sectionData: Record<string, unknown> = (prev as Record<string, any>)[section] || {};
+      return {
+        ...prev,
+        [section]: {
+          ...sectionData,
+          [field]: value
+        }
+      };
+    });
   };
 
+  /**
+   * Valida siempre contra el estado local del formulario, nunca contra el perfil
+   * de la base de datos: lo que el usuario ve en pantalla es lo que se exige.
+   */
   const getMissingFields = (step: number): string[] => {
     const missing: string[] = [];
 
@@ -244,51 +284,55 @@ export default function CheckoutPage() {
       case 1: {
         const { first_name, last_name, email, phone } = formData.customer_info;
 
-        // Nombre y apellidos son obligatorios siempre: orders los guarda como
-        // NOT NULL. Con sesión iniciada el email ya viene verificado y el
-        // teléfono es opcional en la base de datos, así que no bloquean.
-        if (!first_name) missing.push('Nombre');
-        if (!last_name) missing.push('Apellidos');
-
-        if (!customerEmail) {
-          if (!email) missing.push('Email');
-          if (!phone) missing.push('Teléfono');
-        }
+        if (!cleanValue(first_name)) missing.push('first_name');
+        if (!cleanValue(last_name)) missing.push('last_name');
+        if (!cleanValue(email)) missing.push('email');
+        if (!cleanValue(phone)) missing.push('phone');
 
         return missing;
       }
       case 2: {
         const { address, city, postal_code, province } = formData.delivery_address;
-        if (!address) missing.push('Dirección');
-        if (!city) missing.push('Ciudad');
-        if (!postal_code) missing.push('Código postal');
-        if (!province) missing.push('Provincia');
+        if (!cleanValue(address)) missing.push('address');
+        if (!cleanValue(city)) missing.push('city');
+        if (!cleanValue(postal_code)) missing.push('postal_code');
+        if (!cleanValue(province)) missing.push('province');
         return missing;
       }
       case 3:
-        if (!formData.payment_method) missing.push('Método de pago');
+        if (!formData.payment_method) missing.push('payment_method');
         return missing;
       default:
         return missing;
     }
   };
 
-  const validateStep = (step: number): boolean => getMissingFields(step).length === 0;
-
   const nextStep = () => {
     const missing = getMissingFields(currentStep);
 
     if (missing.length === 0) {
+      setMissingFields([]);
       setCurrentStep(prev => Math.min(prev + 1, 4));
       return;
     }
 
-    alert(`Para continuar necesitamos: ${missing.join(', ')}.`);
+    // En lugar de una alerta que tapa el formulario, se marcan los campos que
+    // faltan y se lleva el foco al primero para que se pueda escribir al momento.
+    setMissingFields(missing);
+    if (typeof document !== 'undefined') {
+      document.getElementById(`checkout-${missing[0]}`)?.focus();
+    }
   };
 
   const prevStep = () => {
+    setMissingFields([]);
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
+
+  const fieldClassName = (field: string) =>
+    `mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary ${
+      missingFields.includes(field) ? 'border-red-400 bg-red-50' : 'border-gray-300'
+    }`;
 
   const calculateShipping = (): number => calculateShippingCostForLines(cart.items);
 
@@ -370,6 +414,10 @@ export default function CheckoutPage() {
     return null; // El useEffect redirigirá cuando isLoading sea false
   }
 
+  // Con sesión iniciada los campos se muestran siempre: el perfil guardado puede
+  // estar incompleto y el usuario tiene que poder escribir lo que falta.
+  const showPersonalForm = !sessionLoading && (!!customerEmail || mode === 'guest');
+
   const steps = [
     { number: 1, title: 'Información Personal', icon: '👤' },
     { number: 2, title: 'Dirección de Entrega', icon: '📍' },
@@ -449,7 +497,7 @@ export default function CheckoutPage() {
                             )}
                             {getMissingFields(1).length > 0 && (
                               <p className="mt-1 text-green-700">
-                                Solo necesitamos que completes: {getMissingFields(1).join(', ')}.
+                                Solo necesitamos que completes: {describeFields(getMissingFields(1))}.
                               </p>
                             )}
                           </div>
@@ -514,55 +562,86 @@ export default function CheckoutPage() {
                       </div>
                     )}
 
-                    {!sessionLoading && mode === 'guest' && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {showPersonalForm && (
+                      <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Nombre*</label>
-                          <input
-                            type="text"
-                            required
-                            value={formData.customer_info.first_name}
-                            onChange={(e) => handleInputChange('customer_info', 'first_name', e.target.value)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                          />
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {customerEmail ? 'Tus datos' : 'Tus datos de contacto'}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {customerEmail
+                              ? 'Hemos rellenado lo que teníamos guardado. Completa lo que falte o corrige lo que no cuadre.'
+                              : 'Necesitamos estos datos para preparar y entregar tu pedido.'}
+                          </p>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Apellidos*</label>
-                          <input
-                            type="text"
-                            required
-                            value={formData.customer_info.last_name}
-                            onChange={(e) => handleInputChange('customer_info', 'last_name', e.target.value)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                          />
+
+                        {missingFields.length > 0 && (
+                          <div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm">
+                            Para continuar necesitamos: {describeFields(missingFields)}.
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label htmlFor="checkout-first_name" className="block text-sm font-medium text-gray-700">Nombre*</label>
+                            <input
+                              id="checkout-first_name"
+                              type="text"
+                              required
+                              value={formData.customer_info.first_name}
+                              onChange={(e) => handleInputChange('customer_info', 'first_name', e.target.value)}
+                              className={fieldClassName('first_name')}
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="checkout-last_name" className="block text-sm font-medium text-gray-700">Apellidos*</label>
+                            <input
+                              id="checkout-last_name"
+                              type="text"
+                              required
+                              value={formData.customer_info.last_name}
+                              onChange={(e) => handleInputChange('customer_info', 'last_name', e.target.value)}
+                              className={fieldClassName('last_name')}
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="checkout-email" className="block text-sm font-medium text-gray-700">Email*</label>
+                            <input
+                              id="checkout-email"
+                              type="email"
+                              required
+                              readOnly={!!customerEmail}
+                              value={formData.customer_info.email}
+                              onChange={(e) => handleInputChange('customer_info', 'email', e.target.value)}
+                              className={`${fieldClassName('email')} read-only:bg-gray-100 read-only:text-gray-600`}
+                            />
+                            {customerEmail && (
+                              <p className="mt-1 text-xs text-gray-500">Email verificado de tu sesión.</p>
+                            )}
+                          </div>
+                          <div>
+                            <label htmlFor="checkout-phone" className="block text-sm font-medium text-gray-700">Teléfono*</label>
+                            <input
+                              id="checkout-phone"
+                              type="tel"
+                              required
+                              value={formData.customer_info.phone}
+                              onChange={(e) => handleInputChange('customer_info', 'phone', e.target.value)}
+                              className={fieldClassName('phone')}
+                              placeholder="+34 600 123 456"
+                            />
+                            <p className="mt-1 text-xs text-gray-500">Lo usamos para avisarte de la entrega.</p>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Email*</label>
-                          <input
-                            type="email"
-                            required
-                            readOnly={!!customerEmail}
-                            value={formData.customer_info.email}
-                            onChange={(e) => handleInputChange('customer_info', 'email', e.target.value)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary read-only:bg-gray-100 read-only:text-gray-600"
-                          />
-                          {customerEmail && (
-                            <p className="mt-1 text-xs text-gray-500">Email verificado de tu sesión.</p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">
-                            Teléfono{customerEmail ? ' (opcional)' : '*'}
-                          </label>
-                          <input
-                            type="tel"
-                            required={!customerEmail}
-                            value={formData.customer_info.phone}
-                            onChange={(e) => handleInputChange('customer_info', 'phone', e.target.value)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
-                            placeholder="+34 600 123 456"
-                          />
-                        </div>
+
+                        {!customerEmail && mode === 'guest' && (
+                          <button
+                            onClick={() => setMode('login')}
+                            className="text-sm text-gray-600 hover:text-gray-900 underline"
+                          >
+                            ¿Ya eres cliente? Inicia sesión para autocompletar tus datos
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -579,47 +658,57 @@ export default function CheckoutPage() {
                       </div>
                     )}
 
+                    {missingFields.length > 0 && (
+                      <div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm">
+                        Para continuar necesitamos: {describeFields(missingFields)}.
+                      </div>
+                    )}
+
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700">Dirección*</label>
+                        <label htmlFor="checkout-address" className="block text-sm font-medium text-gray-700">Dirección*</label>
                         <input
+                          id="checkout-address"
                           type="text"
                           required
                           value={formData.delivery_address.address}
                           onChange={(e) => handleInputChange('delivery_address', 'address', e.target.value)}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                          className={fieldClassName('address')}
                           placeholder="Calle, número, piso..."
                         />
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Ciudad*</label>
+                          <label htmlFor="checkout-city" className="block text-sm font-medium text-gray-700">Ciudad*</label>
                           <input
+                            id="checkout-city"
                             type="text"
                             required
                             value={formData.delivery_address.city}
                             onChange={(e) => handleInputChange('delivery_address', 'city', e.target.value)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                            className={fieldClassName('city')}
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Código Postal*</label>
+                          <label htmlFor="checkout-postal_code" className="block text-sm font-medium text-gray-700">Código Postal*</label>
                           <input
+                            id="checkout-postal_code"
                             type="text"
                             required
                             value={formData.delivery_address.postal_code}
                             onChange={(e) => handleInputChange('delivery_address', 'postal_code', e.target.value)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                            className={fieldClassName('postal_code')}
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Provincia*</label>
+                          <label htmlFor="checkout-province" className="block text-sm font-medium text-gray-700">Provincia*</label>
                           <input
+                            id="checkout-province"
                             type="text"
                             required
                             value={formData.delivery_address.province}
                             onChange={(e) => handleInputChange('delivery_address', 'province', e.target.value)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary focus:border-primary"
+                            className={fieldClassName('province')}
                           />
                         </div>
                       </div>
