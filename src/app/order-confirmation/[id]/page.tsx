@@ -166,7 +166,7 @@ export default function OrderConfirmationPage() {
                       <div className="bg-gray-50 rounded p-3 mb-3 space-y-2">
                         <div className="flex justify-between">
                           <span className="text-gray-600">IBAN:</span>
-                          <span className="font-mono font-semibold">ES00 0000 0000 0000 0000 0000</span>
+                          <span className="font-mono font-semibold">ES88 0073 0100 5108 9991 7395</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600">Beneficiario:</span>

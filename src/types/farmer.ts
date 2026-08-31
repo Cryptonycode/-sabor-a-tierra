@@ -28,6 +28,7 @@ export interface FarmerApplicationRow {
   website: string | null;
   social_media: string | null;
   profile_image_path: string | null;
+  cover_image_url: string | null;
   status: FarmerStatus;
   rejection_reason: string | null;
   notes: string | null;
@@ -55,6 +56,7 @@ export interface FarmerRow {
   years_experience: number | null;
   hectares: number | null;
   profile_image_url: string | null;
+  cover_image_url: string | null;
   website: string | null;
   social_media: Record<string, string> | string | null;
   status: string;
