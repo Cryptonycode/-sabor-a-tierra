@@ -22,7 +22,8 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
     descripcion: '',
     experiencia: '1',
     hectareas: '',
-    profile_image_path: ''
+    profile_image_path: '',
+    cover_image_url: ''
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,6 +69,7 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
         main_products: '',
         description: formData.descripcion,
         profile_image_path: formData.profile_image_path || undefined,
+        cover_image_url: formData.cover_image_url || undefined,
       };
 
       await farmerApplicationApi.submit(applicationData);
@@ -103,7 +105,8 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
         descripcion: '',
         experiencia: '1',
         hectareas: '',
-        profile_image_path: ''
+        profile_image_path: '',
+        cover_image_url: ''
       });
       setPrivacyAccepted(false);
     } catch (error) {
@@ -325,21 +328,38 @@ export default function FarmerRegistrationModal({ isOpen, onClose }: FarmerRegis
                 </div>
               </div>
 
-              {/* Foto de Perfil */}
-              <div className="mt-6">
-                <ImageUpload
-                  label="Foto de Perfil (opcional)"
-                  currentImageUrl={formData.profile_image_path ? `${process.env.NEXT_PUBLIC_CDN_URL || ''}/${formData.profile_image_path}` : undefined}
-                  uploadUrl="/uploads/farmer-application"
-                  requiresAuth={false}
-                  responseKey="path"
-                  onImageUploaded={(value) => {
-                    if (typeof value === 'string') {
-                      setFormData(prev => ({ ...prev, profile_image_path: value }));
-                    }
-                  }}
-                />
-                <p className="text-xs text-gray-500 mt-2">Formatos permitidos: JPG, PNG, WEBP. Máx 25MB.</p>
+              {/* Imágenes */}
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <ImageUpload
+                    label="Foto de Perfil (opcional)"
+                    currentImageUrl={formData.profile_image_path ? `${process.env.NEXT_PUBLIC_CDN_URL || ''}/${formData.profile_image_path}` : undefined}
+                    uploadUrl="/uploads/farmer-application"
+                    requiresAuth={false}
+                    responseKey="path"
+                    onImageUploaded={(value) => {
+                      if (typeof value === 'string') {
+                        setFormData(prev => ({ ...prev, profile_image_path: value }));
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-gray-500 mt-2">Formatos permitidos: JPG, PNG, WEBP. Máx 25MB.</p>
+                </div>
+                <div>
+                  <ImageUpload
+                    label="Imagen de Portada (opcional)"
+                    currentImageUrl={formData.cover_image_url || undefined}
+                    uploadUrl="/uploads/farmer-application"
+                    requiresAuth={false}
+                    responseKey="publicUrl"
+                    onImageUploaded={(value) => {
+                      if (typeof value === 'string') {
+                        setFormData(prev => ({ ...prev, cover_image_url: value }));
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-gray-500 mt-2">Se usará como fondo de tu ficha pública. JPG, PNG o WEBP. Máx 25MB.</p>
+                </div>
               </div>
 
               {/* Descripción */}

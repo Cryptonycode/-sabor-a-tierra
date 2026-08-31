@@ -47,6 +47,7 @@ const mapApplicationToFarmerPayload = (application: any, adminId: string) => {
     hectares: application.hectares || 0,
     customers_served: 0,
     profile_image_url: application.profile_image_path || null,
+    cover_image_url: application.cover_image_url || null,
     status: 'approved',
     verified: true,
     approved_by: adminId,

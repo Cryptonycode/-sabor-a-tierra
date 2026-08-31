@@ -4,21 +4,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useFarmers } from '@/hooks/useFarmers';
 import FarmerRegistrationModal from '@/components/FarmerRegistrationModal';
-
-const FARMER_UPLOADS_BUCKET = 'uploads-pendientes';
-const DEFAULT_COVER_IMAGE = 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1200&h=600&fit=crop';
-const DEFAULT_PROFILE_IMAGE = '/default-avatar.png';
-
-const formatFarmerImageUrl = (imagePath: string | null | undefined, fallback: string) => {
-  if (!imagePath) return fallback;
-  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, '');
-  if (!supabaseUrl) return fallback;
-
-  const normalizedPath = imagePath.replace(/^\/+/, '');
-  return `${supabaseUrl}/storage/v1/object/public/${FARMER_UPLOADS_BUCKET}/${normalizedPath}`;
-};
+import {
+  DEFAULT_COVER_IMAGE,
+  DEFAULT_PROFILE_IMAGE,
+  formatFarmerImageUrl,
+} from '@/lib/farmerImages';
 
 export default function AgricultoresPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -179,7 +169,7 @@ export default function AgricultoresPage() {
                       <div
                         className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 px-4 rounded-lg transition-colors text-center"
                       >
-                        Conocer a {farmer.first_name}
+                        Compra sus productos
                       </div>
                     </div>
                   </div>

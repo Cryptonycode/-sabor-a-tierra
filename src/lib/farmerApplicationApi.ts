@@ -15,6 +15,7 @@ export interface FarmerApplicationData {
   website?: string;
   social_media?: string;
   profile_image_path?: string;
+  cover_image_url?: string;
 }
 
 export const farmerApplicationApi = {
